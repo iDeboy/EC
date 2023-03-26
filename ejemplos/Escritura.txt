@@ -1,0 +1,3 @@
+Inicio
+    Escribir "Hola, Mundo";
+Fin

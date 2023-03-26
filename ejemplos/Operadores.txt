@@ -1,0 +1,51 @@
+Inicio
+
+    Establecer Entero numero1 = 5;
+
+    Establecer Entero numero2 = 3;
+
+    Establecer Booleano logico1;
+
+    Establecer Booleano logico2;
+
+
+
+    Establecer Entero suma = numero1 + numero2;
+
+    Establecer Entero resta = numero1 - numero2;
+
+    Establecer Entero multiplicacion = numero1 * numero2;
+
+    Establecer Entero division = numero1 / numero2;
+
+    Establecer Entero modulo = numero1 % numero2;
+
+
+
+    logico1 = falso;
+
+    logico2 = verdadero;
+
+
+
+    Establecer Booleano y = logico1 && logico2;
+
+    Establecer Booleano o = logico1 || logico2;
+
+    Establecer Booleano no = !logico1;
+
+
+
+    Establecer Booleano igual = numero1 == numero2;
+
+    Establecer Booleano diferente = numero1 != numero2;
+
+    Establecer Booleano mayor = numero1 > numero2;
+
+    Establecer Booleano menor = numero1 < numero2;
+
+    Establecer Booleano mayorIgual = numero1 >= numero2;
+
+    Establecer Booleano menorIgual = numero1 <= numero2;
+
+Fin

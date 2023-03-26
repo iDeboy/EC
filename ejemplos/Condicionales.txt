@@ -1,0 +1,24 @@
+Inicio
+    Establecer Entero numero1 = 10;
+    Establecer Entero numero2 = -5;
+
+    Si numero1 > numero2 Entonces
+        Escribir "Numero 1 es mayor que Numero 2";
+    Sino
+        Escribir "Numero 2 es mayor que Numero 1";
+    FinSi
+
+    Escribir "Ingresa un numero del 1 al 3: ";
+    Interpretar numero1;
+
+    Conforme numero1 Hacer
+        Caso 1:
+            Escribir "El numero es 1";
+        Caso 2:
+            Escribir "El numero es 2";
+        Caso 3:
+            Escribir "El numero es 3";
+        En Otro Caso:
+            Escribir "El numero no esta en el rango";
+    FinConforme
+Fin

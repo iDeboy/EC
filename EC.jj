@@ -1,0 +1,294 @@
+
+options {
+    STATIC = false;
+    BUILD_PARSER = false;
+    OUTPUT_DIRECTORY = "compilador";
+}
+
+PARSER_BEGIN(EC)
+
+    package compilador;
+
+    public class EC {
+        public static void main(String[] args) throws ParseException {
+
+        }
+    }
+    
+PARSER_END(EC)
+
+// Inicio y fin del programa
+TOKEN : {
+
+    <INICIO: "Inicio">{
+        System.out.println(image + " -> PR_Arranque_Programa");
+    }
+    |
+    <FIN: "Fin">{
+        System.out.println(image + " -> PR_Arranque_Programa");
+    }
+
+}
+
+// Tipos de dato
+TOKEN : {
+
+    <ENTERO: ("Entero" | "entero")>{
+        System.out.println(image + " -> PR_Tipo_De_Dato");
+    }
+    |
+    <FLOTANTE : ("Flotante" | "flotante")>{
+        System.out.println(image + " -> PR_Tipo_De_Dato");
+    }
+    |
+    <CADENA: ("Cadena" | "cadena")>{
+        System.out.println(image + " -> PR_Tipo_De_Dato");
+    }
+    |
+    <CARACTER: ("Caracter" | "caracter")>{
+        System.out.println(image + " -> PR_Tipo_De_Dato");
+    }
+    |
+    <BOOLEANO: ("Booleano" | "booleano")>{
+        System.out.println(image + " -> PR_Tipo_De_Dato");
+    }
+}
+
+// Constantes/Literales
+TOKEN : {
+    <#LETRA: ["a" - "z", "ñ"] | ["A" - "Z", "Ñ"]>
+    |
+    <#NUMERO: ["0" - "9"]>
+    |
+    <#SIMBOLO: [",", ".", " ", ":", "°", "!", "¬", "|", "#", "$", "%", "&",
+                "/", "(", ")", "=", "?", "¿", "¡", "@", "¨", "´", "+", "*",
+                "~", "{", "[", "^", "}", "]", "`", "<", ">", ";", "-", "_", "\\",
+                "\"", "\'"]>
+    |
+    <CADENA_TEXTO: "\"" ( <LETRA> | <NUMERO> | <SIMBOLO> )* "\"">{
+        System.out.println(image + " -> Cadena_Texto");
+    }
+    |
+    <CARACTER_TEXTO: "'"( <LETRA> | <NUMERO> | <SIMBOLO> | "")"'">{
+        System.out.println(image + " -> Caracter_Texto");
+    }
+    |
+    <NUMERO_ENTERO: ("-" | "" | "+")(<NUMERO>)+>{
+        System.out.println(image + " -> Numero_Entero");
+    }
+    |
+    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)*"."(<NUMERO>)+>{
+        System.out.println(image + " -> Numero_Decimal");
+    }
+    |
+    <BOOLEANO_FALSO: "Falso">{
+        System.out.println(image + " -> PR_Booleano_Falso");
+    }
+    |
+    <BOOLEANO_VERDADERO: "Verdadero">{
+        System.out.println(image + " -> PR_Booleano_Verdadero");
+    }
+    |
+    <COMENTARIO: "#"(<LETRA> | <SIMBOLO> | <NUMERO> )*("\r\n" | "\n")>{
+        System.out.println(image.deleteCharAt(image.length() - 1) + " -> Comentario");
+    }
+    |
+    <DELIMITADOR: ";">{
+        System.out.println(image + " -> Delimitador");
+    }
+
+}
+
+// Escritura, Lectura y Definición de variables
+TOKEN : {
+    <INTERPRETAR: "Interpretar">{
+        System.out.println(image + " -> PR_Lectura");
+    }
+    |
+    <ESCRIBIR: "Escribir">{
+        System.out.println(image + " -> PR_Escritura");
+    }
+    |
+    <ESTABLECER: "Establecer">{
+        System.out.println(image + " -> PR_Definicion_Varible");
+    }
+}
+
+// Operadores
+TOKEN : {
+    <ASIGNACION: "=">{
+        System.out.println(image + " -> Operador_Asignacion");
+    }
+    |
+    <SUMA: "+">{
+        System.out.println(image + " -> Operador_Suma");
+    }
+    |
+    <RESTA: "-">{
+        System.out.println(image + " -> Operador_Resta");
+    }
+    |
+    <MULTIPLICACION: "*">{
+        System.out.println(image + " -> Operador_Mult");
+    }
+    |
+    <DIVISION: "/">{
+        System.out.println(image + " -> Operador_Div");
+    }
+    |
+    <MODULO: "%">{
+        System.out.println(image + " -> Operador_Mod");
+    }
+    |
+    <LOGICO_AND: "&&">{
+        System.out.println(image + " -> Operador_Logico_AND");
+    }
+    |
+    <LOGICO_OR: "||">{
+        System.out.println(image + " -> Operador_Logico_OR");
+    }
+    |
+    <LOGICO_NOT: "!">{
+        System.out.println(image + " -> Operador_Logico_NOT");
+    }
+    |
+    <ASIGNACION_COMPUESTA: (<SUMA>|<RESTA>|<MULTIPLICACION>|<DIVISION>|<MODULO>|<LOGICO_AND>|<LOGICO_OR>)<ASIGNACION>>{
+        System.out.println(image + " -> Operador_Asignacion_Compuesta");
+    }
+    |
+    <OPERADOR_IGUAL: "==">{
+        System.out.println(image + " -> Operador_igualQue");
+    }
+    |
+    <OPERADOR_DIFERENTE: "!=">{
+        System.out.println(image + " -> Operador_diferente");
+    }
+    |
+    <OPERADOR_MAYOR: ">">{
+        System.out.println(image + " -> Operador_mayorQue");
+    }
+    |
+    <OPERADOR_MENOR: "<">{
+        System.out.println(image + " -> Operador_menorQue");
+    }
+    |
+    <OPERADOR_MAYOR_IGUAL: ">=">{
+        System.out.println(image + " -> Operador_mayorIgualQue");
+    }
+    |
+    <OPERADOR_MENOR_IGUAL: "<=">{
+        System.out.println(image + " -> Operador_menorIgualQue");
+    }
+    |
+    <OPERADOR_DOS_PUNTOS: ":">{
+        System.out.println(image + " -> Operador_Dos_Puntos");
+    }
+    |
+    <PAREN_ABIERTO: "(">{
+        System.out.println(image + " -> Parentesis_Abierto");
+    }
+    |
+    <PAREN_CERRADO: ")">{
+        System.out.println(image + " -> Parentesis_Cerrado");
+    }
+}
+
+// Ciclos
+TOKEN : {
+    <INICIO_CICLO_PARA: "Para">{
+        System.out.println(image + " -> PR_Ciclo_Para");
+    }
+    |
+    <CONDICION_CICLO_PARA: "Hasta que">{
+        System.out.println(image + " -> PR_Condicion_Ciclo_Para");
+    }
+    |
+    <INCREMENTO_CICLO_PARA: "Con incremento">{
+        System.out.println(image + " -> PR_Incremento_Ciclo_Para");
+    }
+    |
+    <FIN_CICLO_PARA: "FinPara">{
+        System.out.println(image + " -> PR_Fin_Ciclo_Para");
+    }
+    |
+    <INICIO_CICLO_MIENTRAS: "Mientras">{
+        System.out.println(image + " -> PR_Ciclo_Mientras");
+    }
+    |
+    <FIN_CICLO_MIENTRAS: "FinMientras">{
+        System.out.println(image + " -> PR_Fin_Ciclo_Mientras");
+    }
+    |
+    <INICIO_CICLO_REPETIR: "Repetir">{
+        System.out.println(image + " -> PR_Ciclo_Repetir");
+    }
+    |
+    <CONDICION_CICLO_REPETIR: "Finaliza cuando">{
+        System.out.println(image + " -> PR_Condicion_Ciclo_Repetir");
+    }
+}
+
+// Condicionales
+TOKEN : {
+    <INICIO_CONDICIONAL_SI:"Si"> {
+        System.out.println(image + " -> PR_Condicional_Si");
+    }
+    |
+    <ENTONCES:"Entonces">{
+        System.out.println(image + " -> PR_Entonces");
+    }
+    |
+    <CONDICIONAL_SINO:"Sino">{
+        System.out.println(image + " -> PR_Condicional_Sino");
+    }
+    |
+    <FIN_CONDICIONAL_SI:"FinSi">{
+        System.out.println(image + " -> PR_Fin_Condicional_Si");
+    }
+    |
+    <INICIO_CONDICIONAL_CONFORME:"Conforme">{
+        System.out.println(image + " -> PR_Condicional_Conforme");
+    }
+    |
+    <CASO:"Caso">{
+        System.out.println(image + " -> PR_Conforme_Caso");
+    }
+    |
+    <CASO_PREDETERMINADO:"En otro caso">{
+        System.out.println(image + " -> PR_Conforme_Caso_Predeterminado");
+    }
+    |
+    <FIN_CONFORME:"FinConforme">{
+        System.out.println(image + " -> PR_Fin_Condicional_Conforme");
+    }
+    |
+    <HACER : "Hacer">{
+        System.out.println(image + " -> PR_Hacer");
+    }
+}
+
+//Variables
+TOKEN : {
+    <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>{
+        System.out.println(image + " -> Variable");
+    }
+
+}
+
+SKIP : {
+    " "
+    | "\t"
+    | "\r\n"
+    | "\n"
+}
+
+// Tokens invalidos
+TOKEN : {
+
+    <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>
+    |
+    <INVALIDO: ~[]>
+
+}
+
+

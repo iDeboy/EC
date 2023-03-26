@@ -1,0 +1,20 @@
+Inicio
+
+    Establecer Entero i;
+    Para i = 0 Hasta Que i <= 5 Con incremento 2
+        # Codigo
+    FinPara
+
+    Para Establecer Entero j = 0 Hasta Que j <= 5 Con incremento 2
+            # Codigo
+    FinPara
+
+    Establecer Entero numero = 100;
+    Mientras numero > 0
+        # Codigo
+    FinMientras
+
+    Repetir
+        # Codigo
+    Finaliza cuando numero <= 0
+Fin

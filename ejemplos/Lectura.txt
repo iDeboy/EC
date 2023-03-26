@@ -1,0 +1,7 @@
+Inicio
+
+    Establecer Entero edad;
+
+    Interpretar edad;
+
+Fin
