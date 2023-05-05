@@ -289,8 +289,8 @@ TOKEN : {
         System.out.println(image + " -> PR_Booleano_Verdadero");
     }
     |
-    <COMENTARIO: "#"(<LETRA> | <SIMBOLO> | <NUMERO> )*("\r\n" | "\n")>{
-        System.out.println(image.deleteCharAt(image.length() - 1) + " -> Comentario");
+    <COMENTARIO: "#"(<LETRA> | <SIMBOLO> | <NUMERO> )*>{
+        System.out.println(image + " -> Comentario");
     }
     |
     <DELIMITADOR: ";">{

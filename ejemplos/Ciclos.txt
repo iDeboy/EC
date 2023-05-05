@@ -1,7 +1,7 @@
 Inicio
 
     Establecer Entero i;
-    Para i = 0 Hasta Que i <= 5 Con incremento 2
+    Para i = 0 Hasta que i <= 5 Con incremento 2
         # Codigo
     FinPara
 
