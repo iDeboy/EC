@@ -5,7 +5,7 @@ Inicio
         # Codigo
     FinPara
 
-    Para Establecer Entero j = 0 Hasta Que j <= 5 Con incremento 2
+    Para Establecer Entero j = 0 Hasta que j <= 5 Con incremento 2
             # Codigo
     FinPara
 

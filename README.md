@@ -7,11 +7,11 @@ EC es un compilador para el lenguaje de programación *ELL*,  creado con **JavaC
 - Abrir una **terminal**.
 - Ejecutar los siguientes comandos:
 ```shell
-javacc EC.jj
+$ javacc EC.jj
 ```
 
 ```shell
-javac compilador/*.java
+$ javac compilador/*.java
 ```
 
 ## Probar la fase léxica del compilador
@@ -20,10 +20,10 @@ javac compilador/*.java
 - Ejecutar los siguientes comandos:
 
 ```shell
-javac lexico/TestLexico.java
+$ javac lexico/TestLexico.java
 ```
 
 ```shell
-java lexico.TestLexico <archivo_codigo_fuente>
+$ java lexico.TestLexico <archivo_codigo_fuente>
 ```
 

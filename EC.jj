@@ -1,7 +1,7 @@
 
 options {
     STATIC = false;
-    BUILD_PARSER = false;
+    // BUILD_PARSER = false;
     OUTPUT_DIRECTORY = "compilador";
 }
 
@@ -9,8 +9,208 @@ PARSER_BEGIN(EC)
 
     package compilador;
 
+    import java.io.*;
+    import java.util.*;
+
     public class EC {
+
+        private static final String VERSION = "0.1.5";
+        private static final String NAME = EC.class.getSimpleName();
+        private static final String PROGRAM = "." + File.separatorChar + NAME;
+        private static int index = 0;
+        private static String command = "";
+        private static String source_file = "";
+
+        private static void unimplemented(){
+            System.out.println("ERROR: El comando '" + command + "' todavia no esta implementado.");
+            System.out.println();
+            System.exit(-1);
+        }
+
+        private static void usage(){
+
+            System.out.println("USO: " + PROGRAM + " <Comando>");
+            System.out.println(" Compila o revisa la estructura de un código fuente escrito en el lenguaje ELL.");
+            System.out.println(" El <Comando> por defecto es '-c'.");
+            System.out.println("  <Comando>:");
+            System.out.println("    -c <codigo_fuente.txt>");
+            System.out.println("      Compila el código fuente.");
+            System.out.println("    -l <codigo_fuente.txt>");
+            System.out.println("      Revisa la léxica del código fuente.");
+            System.out.println("    -sin <codigo_fuente.txt>");
+            System.out.println("      Revisa la sintaxis del código fuente.");
+            System.out.println("    -h o -u");
+            System.out.println("      Muestra este mensaje de ayuda.");
+            System.out.println("    -v");
+            System.out.println("      Muestra la versión del compilador.");
+            System.out.println();
+        }
+
+        private static void checkTooManyArguments(String[] args){
+            if(args.length > index){
+                usage();
+                System.err.println("ERROR: Hay más de un comando.");
+                System.out.println();
+                System.exit(-1);
+            }
+        }
+
+        private static void setSourceFile(String[] args){
+
+            if(source_file.isEmpty()){
+
+                if(args.length < index + 1){
+                    usage();
+                    System.err.println("ERROR: Debe de ingresar el archivo del código fuente.");
+                    System.out.println();
+                    System.exit(-1);
+                }
+
+                source_file = args[index++];
+                // index = 2
+            }
+
+            checkTooManyArguments(args);
+
+            ensureSourceExists();
+
+        }
+
+        private static void ensureSourceExists(){
+            File file = new File(source_file);
+            if(!file.exists()){
+                usage();
+                System.err.println("ERROR: El archivo " + source_file + " no existe.");
+                System.exit(-1);
+                System.out.println();
+            }
+        }
+
+        private static void checkLex(){
+
+            try{
+
+                FileReader sourceFileReader = new FileReader(source_file);
+
+                // Instanciar objeto de TokenManager y obtener todos los tokens. Ej:
+                ECTokenManager lexico = new ECTokenManager(new SimpleCharStream(sourceFileReader));
+
+                // Lista de errores
+                ArrayList<String> errores = new ArrayList<String>();
+
+                Token t = null;
+                do {
+                    try {
+                        t = lexico.getNextToken();
+
+                        if (t.kind == ECTokenManager.INVALIDO)
+                            throw new TokenMgrError("Error léxico en línea " +
+                                    t.beginLine + ", columna " + t.beginColumn +
+                                    ". Se encontró símbolo inválido '" + t.image + "'.\n        " +
+                                    "Posible solución: Remover símbolo.", TokenMgrError.LEXICAL_ERROR);
+
+                        if (t.kind == ECTokenManager.NUMERO_INVALIDO)
+                            throw new TokenMgrError("Error léxico en línea " +
+                                    t.beginLine + ", columna " + t.beginColumn +
+                                    ". Se encontró un número inválido '" + t.image + "'.\n        " +
+                                    "Posible solución: Remover o revisar número.", TokenMgrError.LEXICAL_ERROR);
+
+                    } catch (TokenMgrError ex) {
+                        errores.add(ex.getMessage());
+                    }
+                } while (t.kind != ECTokenManager.EOF);
+
+                System.out.println();
+
+                if (errores.isEmpty()) {
+                    System.out.println("Se pasó el test léxico con éxito.\nNo se encontraron errores.");
+                    System.exit(0);
+                }
+
+                System.err.println("No se pasó el test léxico.");
+
+                if (errores.size() == 1) {
+                    System.err.println("Se encontró " + errores.size() + " error:");
+                } else {
+                    System.err.println("Se encontraron " + errores.size() + " errores:");
+                }
+
+                for (int i = 0; i < errores.size(); i++) {
+                    System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
+                }
+
+                System.exit(-1);
+            } catch (FileNotFoundException ex) {
+                System.err.println(ex.getMessage());
+            }
+        }
+
         public static void main(String[] args) throws ParseException {
+
+            if (args.length == 0) {
+                usage();
+                System.err.println("ERROR: Debe de ingresar el archivo del código fuente o un comando.");
+                System.exit(-1);
+            }
+
+            command = "-c";
+            source_file = "";
+
+            if(args[index].startsWith("-"))
+                command = args[index];
+            else
+                source_file = args[index];
+
+            index++;
+
+            // index = 1
+            switch (command){
+
+                case "-c":
+
+                    setSourceFile(args);
+
+                    // Compilar
+                    unimplemented();
+
+                    break;
+                case "-l":
+
+                    setSourceFile(args);
+
+                    // Revisar fase lexica
+                    checkLex();
+
+                    break;
+                case "-sin":
+
+                    setSourceFile(args);
+
+                    // Revisar fase sintectica
+                    unimplemented();
+
+                    break;
+                case "-h":
+                case "-u":
+
+                    checkTooManyArguments(args);
+
+                    usage();
+
+                    break;
+                case "-v":
+
+                    checkTooManyArguments(args);
+
+                    System.out.println(NAME + " " + VERSION);
+
+                    break;
+                default:
+                    usage();
+                    System.out.println("ERROR: Commando '" + command + "' no existe.");
+                    System.exit(-1);
+                    break;
+            }
 
         }
     }
