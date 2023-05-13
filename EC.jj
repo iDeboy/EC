@@ -145,6 +145,16 @@ PARSER_BEGIN(EC)
             }
         }
 
+        private static void checkSintax() throws ParseException {
+            EC sintactico = new EC(System.in);
+
+            System.out.println("Fase sintactica:");
+            System.out.println("----------------------------------------------");
+            sintactico.programa();
+            System.out.println("El programa paso la prueba sintactica correctamente.");
+
+        }
+
         public static void main(String[] args) throws ParseException {
 
             if (args.length == 0) {
