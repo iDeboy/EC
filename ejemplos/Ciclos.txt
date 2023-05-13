@@ -6,7 +6,7 @@ Inicio
     FinPara
 
     Para Establecer Entero j = 0 Hasta que j <= 5 Con incremento 2
-            # Codigo
+        # Codigo
     FinPara
 
     Establecer Entero numero = 100;

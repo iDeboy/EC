@@ -81,8 +81,8 @@ PARSER_BEGIN(EC)
             if(!file.exists()){
                 usage();
                 System.err.println("ERROR: El archivo " + source_file + " no existe.");
-                System.exit(-1);
                 System.out.println();
+                System.exit(-1);
             }
         }
 
@@ -260,16 +260,16 @@ TOKEN : {
     |
     <#NUMERO: ["0" - "9"]>
     |
-    <#SIMBOLO: [",", ".", " ", ":", "°", "!", "¬", "|", "#", "$", "%", "&",
+   /*<#SIMBOLO: [",", ".", " ", ":", "°", "!", "¬", "|", "#", "$", "%", "&",
                 "/", "(", ")", "=", "?", "¿", "¡", "@", "¨", "´", "+", "*",
                 "~", "{", "[", "^", "}", "]", "`", "<", ">", ";", "-", "_", "\\",
                 "\"", "\'"]>
-    |
-    <CADENA_TEXTO: "\"" ( <LETRA> | <NUMERO> | <SIMBOLO> )* "\"">{
+    |*/
+    <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">{
         System.out.println(image + " -> Cadena_Texto");
     }
     |
-    <CARACTER_TEXTO: "'"( <LETRA> | <NUMERO> | <SIMBOLO> | "")"'">{
+    <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">{
         System.out.println(image + " -> Caracter_Texto");
     }
     |
@@ -277,7 +277,7 @@ TOKEN : {
         System.out.println(image + " -> Numero_Entero");
     }
     |
-    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)*"."(<NUMERO>)+>{
+    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)+"."(<NUMERO>)+>{
         System.out.println(image + " -> Numero_Decimal");
     }
     |
@@ -289,7 +289,7 @@ TOKEN : {
         System.out.println(image + " -> PR_Booleano_Verdadero");
     }
     |
-    <COMENTARIO: "#"(<LETRA> | <SIMBOLO> | <NUMERO> )*>{
+    <COMENTARIO: "#"( ~["\n", "\r"] )*>{
         System.out.println(image + " -> Comentario");
     }
     |
@@ -490,5 +490,82 @@ TOKEN : {
     <INVALIDO: ~[]>
 
 }
+// P -> <INICIO> S <FIN>
+void programa(): {}{
+    <INICIO> sentencias() <FIN>
+}
 
+// S -> ( DV | LD | ID)+
+void sentencias():{}{
+    ( <COMENTARIO> |
+      declaracionVariables() |
+      leerDato() |
+      imprimirDato() |
+      sentenciaSi() |
+      sentenciaConforme() |
+      sentenciaPara() |
+      sentenciaRepetir()
+    )+
+}
+
+void tiposDato():{}{
+    <ENTERO> | <FLOTANTE> | <CADENA> | <CARACTER> | <BOOLEANO>
+}
+
+void constantes():{}{
+    <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
+}
+
+void operadoresRelacionales():{}{
+    <OPERADOR_IGUAL> | <OPERADOR_DIFERENTE> | <OPERADOR_MAYOR> | <OPERADOR_MAYOR_IGUAL> | <OPERADOR_MENOR> | <OPERADOR_MENOR_IGUAL>
+}
+
+void operadoresLogicos():{}{
+    <LOGICO_AND> | <LOGICO_OR>
+}
+
+// DV ->  <ESTABLECER> (<ENTERO> | <FLOTANTE> | <CADENA> | <CARACTER> | <BOOLEANO> ) <VARIABLE> (<ASIGNACION> (<NUMERO_ENTERO> |<NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO> ) )? <DELIMITADOR>
+void declaracionVariables():{}{
+    <ESTABLECER> tiposDato() <VARIABLE> ( <ASIGNACION> constantes() )? <DELIMITADOR>
+}
+
+// LD -> <INTERPRETAR> <VARIABLE> <DELIMITADOR>
+void leerDato():{}{
+    <INTERPRETAR> <VARIABLE> <DELIMITADOR>
+}
+
+// ID ->  <ESCRIBIR> (<CARACTER_TEXTO> | <CADENA_TEXTO> | <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO> | <VARIABLE> ) <DELIMITADOR>
+void imprimirDato():{}{
+    <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
+}
+
+void sentenciaSi():{}{
+    <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> sentencias() ( <CONDICIONAL_SINO> sentencias() )? <FIN_CONDICIONAL_SI>
+}
+
+// var1 == var2 || var1 == var2
+// var1 + 5 < var2 -2 || 3 + 6 != val3 % 5 <- Lograr esto (Pendiente)
+void condicion():{}{
+    ( <VARIABLE> | constantes() ) operadoresRelacionales() ( <VARIABLE> | constantes() )
+    ( operadoresLogicos() condicion() )?
+}
+
+void sentenciaConforme():{}{
+    <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
+    ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> sentencias() )+
+    ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> sentencias() )?
+    <FIN_CONFORME>
+}
+
+void sentenciaPara():{}{
+    <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
+    <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
+    sentencias()
+    <FIN_CICLO_PARA>
+}
+
+void sentenciaRepetir():{}{
+    <INICIO_CICLO_REPETIR> sentencias()
+    <CONDICION_CICLO_REPETIR> condicion()
+}
 
