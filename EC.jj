@@ -84,6 +84,7 @@ PARSER_BEGIN(EC)
                 System.out.println();
                 System.exit(-1);
             }
+
         }
 
         private static void checkLex(){
@@ -145,17 +146,27 @@ PARSER_BEGIN(EC)
             }
         }
 
-        private static void checkSintax() throws ParseException {
-            EC sintactico = new EC(System.in);
+        private static void checkSyntax() {
 
-            System.out.println("Fase sintactica:");
-            System.out.println("----------------------------------------------");
-            sintactico.programa();
-            System.out.println("El programa paso la prueba sintactica correctamente.");
+            try {
+                FileReader sourceFileReader = new FileReader(source_file);
+
+                EC sintactico = new EC(sourceFileReader);
+
+                System.out.println("Fase sintáctica:");
+                System.out.println("----------------------------------------------");
+                sintactico.programa();
+                System.out.println("El programa pasó la prueba sintáctica correctamente.");
+            } catch (FileNotFoundException ex) {
+                System.err.println(ex.getMessage());
+            } catch (ParseException ex) {
+                ex.printStackTrace();
+            }
+
 
         }
 
-        public static void main(String[] args) throws ParseException {
+        public static void main(String[] args) {
 
             if (args.length == 0) {
                 usage();
@@ -197,7 +208,7 @@ PARSER_BEGIN(EC)
                     setSourceFile(args);
 
                     // Revisar fase sintectica
-                    unimplemented();
+                    checkSyntax();
 
                     break;
                 case "-h":
@@ -501,21 +512,21 @@ TOKEN : {
 
 }
 // P -> <INICIO> S <FIN>
-void programa(): {}{
-    <INICIO> sentencias() <FIN>
+void programa(): { }{
+    <INICIO> ( sentencias() )+ <FIN>
 }
 
 // S -> ( DV | LD | ID)+
 void sentencias():{}{
-    ( <COMENTARIO> |
-      declaracionVariables() |
-      leerDato() |
-      imprimirDato() |
-      sentenciaSi() |
-      sentenciaConforme() |
-      sentenciaPara() |
-      sentenciaRepetir()
-    )+
+    <COMENTARIO> |
+    declaracionVariables() <DELIMITADOR> |
+    leerDato() |
+    imprimirDato() |
+    sentenciaSi() |
+    sentenciaConforme() |
+    sentenciaPara() |
+    sentenciaRepetir() |
+    sentenciaMientras()
 }
 
 void tiposDato():{}{
@@ -526,6 +537,23 @@ void constantes():{}{
     <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
 }
 
+void asignacionAritmetica():{}{
+    <ASIGNACION> operacionAritmetica()
+}
+
+void operacionAritmetica():{}{
+    ( <VARIABLE> | constantes() | operacionAritmeticaParentesis() )
+    (operadoresAritmeticos() (<VARIABLE> | constantes() | operacionAritmeticaParentesis() ))*
+}
+
+void operacionAritmeticaParentesis():{}{
+    <PAREN_ABIERTO> operacionAritmetica() <PAREN_CERRADO>
+}
+
+void operadoresAritmeticos():{}{
+    <SUMA> | <RESTA> | <MULTIPLICACION> | <DIVISION> | <MODULO>
+}
+
 void operadoresRelacionales():{}{
     <OPERADOR_IGUAL> | <OPERADOR_DIFERENTE> | <OPERADOR_MAYOR> | <OPERADOR_MAYOR_IGUAL> | <OPERADOR_MENOR> | <OPERADOR_MENOR_IGUAL>
 }
@@ -534,48 +562,52 @@ void operadoresLogicos():{}{
     <LOGICO_AND> | <LOGICO_OR>
 }
 
-// DV ->  <ESTABLECER> (<ENTERO> | <FLOTANTE> | <CADENA> | <CARACTER> | <BOOLEANO> ) <VARIABLE> (<ASIGNACION> (<NUMERO_ENTERO> |<NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO> ) )? <DELIMITADOR>
 void declaracionVariables():{}{
-    <ESTABLECER> tiposDato() <VARIABLE> ( <ASIGNACION> constantes() )? <DELIMITADOR>
+    <ESTABLECER> tiposDato() <VARIABLE> ( asignacionAritmetica() )?
 }
 
-// LD -> <INTERPRETAR> <VARIABLE> <DELIMITADOR>
 void leerDato():{}{
     <INTERPRETAR> <VARIABLE> <DELIMITADOR>
 }
 
-// ID ->  <ESCRIBIR> (<CARACTER_TEXTO> | <CADENA_TEXTO> | <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO> | <VARIABLE> ) <DELIMITADOR>
 void imprimirDato():{}{
     <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
 }
 
 void sentenciaSi():{}{
-    <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> sentencias() ( <CONDICIONAL_SINO> sentencias() )? <FIN_CONDICIONAL_SI>
+    <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> ( sentencias() )+
+    ( <CONDICIONAL_SINO> ( sentencias() )+ )?
+    <FIN_CONDICIONAL_SI>
 }
 
-// var1 == var2 || var1 == var2
-// var1 + 5 < var2 -2 || 3 + 6 != val3 % 5 <- Lograr esto (Pendiente)
+// var1 + 5 < var2 - 2 || 3 + 6 != val3 % 5 <- Lograr esto (Hecho)
 void condicion():{}{
-    ( <VARIABLE> | constantes() ) operadoresRelacionales() ( <VARIABLE> | constantes() )
-    ( operadoresLogicos() condicion() )?
+    ( constantes() | <VARIABLE> | operacionAritmetica() ) operadoresRelacionales()
+    ( constantes() | <VARIABLE>  | operacionAritmetica() ) ( operadoresLogicos() condicion() )*
 }
 
 void sentenciaConforme():{}{
     <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
-    ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> sentencias() )+
-    ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> sentencias() )?
+    ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )+
+    ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )?
     <FIN_CONFORME>
 }
 
 void sentenciaPara():{}{
     <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
     <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
-    sentencias()
+    ( sentencias() )+
     <FIN_CICLO_PARA>
 }
 
 void sentenciaRepetir():{}{
-    <INICIO_CICLO_REPETIR> sentencias()
+    <INICIO_CICLO_REPETIR> ( sentencias() )+
     <CONDICION_CICLO_REPETIR> condicion()
+}
+
+void sentenciaMientras():{}{
+    <INICIO_CICLO_MIENTRAS> condicion() <HACER>
+    ( sentencias() )+
+    <FIN_CICLO_MIENTRAS>
 }
 

@@ -10,7 +10,7 @@ Inicio
     FinPara
 
     Establecer Entero numero = 100;
-    Mientras numero > 0
+    Mientras numero > 0 Hacer
         # Codigo
     FinMientras
 
