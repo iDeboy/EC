@@ -1,6 +1,8 @@
 # Custom ignores
 compilador
 
+out
+
 .idea
 
 ### Java template
