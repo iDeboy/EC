@@ -21,6 +21,9 @@ PARSER_BEGIN(EC)
         private static String command = "";
         private static String source_file = "";
 
+        // Lista de errores
+        private static final ArrayList<String> errores = new ArrayList<String>();
+
         private static void unimplemented(){
             System.out.println("ERROR: El comando '" + command + "' todavia no esta implementado.");
             System.out.println();
@@ -87,22 +90,21 @@ PARSER_BEGIN(EC)
 
         }
 
-        private static void checkLex(){
+        private static boolean checkLex(){
 
-            try{
+            try {
 
                 FileReader sourceFileReader = new FileReader(source_file);
 
                 // Instanciar objeto de TokenManager y obtener todos los tokens. Ej:
                 ECTokenManager lexico = new ECTokenManager(new SimpleCharStream(sourceFileReader));
 
-                // Lista de errores
-                ArrayList<String> errores = new ArrayList<String>();
+                System.out.println("----------------------------------------------");
+                System.out.println("Fase léxica:");
 
-                Token t = null;
-                do {
+                Token t = lexico.getNextToken();
+                while(t.kind != ECTokenManager.EOF) {
                     try {
-                        t = lexico.getNextToken();
 
                         if (t.kind == ECTokenManager.INVALIDO)
                             throw new TokenMgrError("Error léxico en línea " +
@@ -116,57 +118,55 @@ PARSER_BEGIN(EC)
                                     ". Se encontró un número inválido '" + t.image + "'.\n        " +
                                     "Posible solución: Remover o revisar número.", TokenMgrError.LEXICAL_ERROR);
 
+                        System.out.println(t.image);
+
                     } catch (TokenMgrError ex) {
                         errores.add(ex.getMessage());
+                    } finally {
+                        t = lexico.getNextToken();
+
                     }
-                } while (t.kind != ECTokenManager.EOF);
-
-                System.out.println();
-
-                if (errores.isEmpty()) {
-                    System.out.println("Se pasó el test léxico con éxito.\nNo se encontraron errores.");
-                    System.exit(0);
                 }
 
-                System.err.println("No se pasó el test léxico.");
-
-                if (errores.size() == 1) {
-                    System.err.println("Se encontró " + errores.size() + " error:");
-                } else {
-                    System.err.println("Se encontraron " + errores.size() + " errores:");
-                }
-
-                for (int i = 0; i < errores.size(); i++) {
-                    System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
-                }
-
-                System.exit(-1);
             } catch (FileNotFoundException ex) {
-                System.err.println(ex.getMessage());
+                System.err.println("Ha ocurrido un problema con el archivo leído.");
+                System.exit(-1);
             }
+
+            System.out.println("----------------------------------------------");
+
+            return errores.isEmpty();
+
         }
 
-        private static void checkSyntax() {
+        private static boolean checkSyntax() {
+
+            if (!checkLex())  return false;
 
             try {
                 FileReader sourceFileReader = new FileReader(source_file);
 
                 EC sintactico = new EC(sourceFileReader);
 
-                System.out.println("Fase sintáctica:");
                 System.out.println("----------------------------------------------");
+                System.out.println("Fase sintáctica:");
                 sintactico.programa();
                 System.out.println("El programa pasó la prueba sintáctica correctamente.");
             } catch (FileNotFoundException ex) {
-                System.err.println(ex.getMessage());
+                System.err.println("Ha ocurrido un problema con el archivo leído.");
+                System.exit(-1);
             } catch (ParseException ex) {
                 ex.printStackTrace();
             }
 
+            System.out.println("----------------------------------------------");
 
+            return true;
         }
 
         public static void main(String[] args) {
+
+            // args = new String[]{"-sin", "ejemplos/Ciclos.txt"};
 
             if (args.length == 0) {
                 usage();
@@ -200,7 +200,22 @@ PARSER_BEGIN(EC)
                     setSourceFile(args);
 
                     // Revisar fase lexica
-                    checkLex();
+                    if (checkLex()){
+                        System.out.println("Se pasó la prueba léxica con éxito.\nNo se encontraron errores.");
+                        System.exit(0);
+                    }
+
+                    if (errores.size() == 1) {
+                        System.err.println("Se encontró " + errores.size() + " error durante la prueba léxica:");
+                    } else {
+                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba léxica:");
+                    }
+
+                    for (int i = 0; i < errores.size(); i++) {
+                        System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
+                    }
+
+                    System.exit(-1);
 
                     break;
                 case "-sin":
@@ -208,7 +223,22 @@ PARSER_BEGIN(EC)
                     setSourceFile(args);
 
                     // Revisar fase sintectica
-                    checkSyntax();
+                    if(checkSyntax()){
+                        System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
+                        System.exit(0);
+                    }
+
+                    if (errores.size() == 1) {
+                        System.err.println("Se encontró " + errores.size() + " error durante la prueba sintáctica:");
+                    } else {
+                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba sintáctica:");
+                    }
+
+                    for (int i = 0; i < errores.size(); i++) {
+                        System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
+                    }
+
+                    System.exit(-1);
 
                     break;
                 case "-h":
@@ -234,6 +264,32 @@ PARSER_BEGIN(EC)
             }
 
         }
+
+        void skipTo(int kind){
+
+            Token t;
+            do {
+                t = getNextToken();
+            } while (t.kind != kind && t.kind != EC.EOF);
+
+        }
+
+        void skipToOne(int[] kinds){ // DELIMITADOR o PARA o MIENTRAS o REPETIR o ESTABLECER o ESCRIBIR o INTERPRETAR
+
+            Token t;
+            boolean sw = true;
+            do {
+                t = getNextToken();
+
+                for (int kind : kinds) {
+                    sw &= t.kind != kind;
+
+                    if(!sw) break;
+                }
+
+            } while (sw && t.kind != EC.EOF);
+
+        }
     }
     
 PARSER_END(EC)
@@ -242,11 +298,13 @@ PARSER_END(EC)
 TOKEN : {
 
     <INICIO: "Inicio">{
-        System.out.println(image + " -> PR_Arranque_Programa");
+        matchedToken.image += " -> PR_Arranque_Programa";
+        //System.out.println(image + " -> PR_Arranque_Programa");
     }
     |
     <FIN: "Fin">{
-        System.out.println(image + " -> PR_Arranque_Programa");
+        matchedToken.image += " -> PR_Fin_Programa";
+        // System.out.println(image + " -> PR_Fin_Programa");
     }
 
 }
@@ -255,23 +313,28 @@ TOKEN : {
 TOKEN : {
 
     <ENTERO: ("Entero" | "entero")>{
-        System.out.println(image + " -> PR_Tipo_De_Dato");
+        matchedToken.image += " -> PR_Tipo_De_Dato";
+        //System.out.println(image + " -> PR_Tipo_De_Dato");
     }
     |
     <FLOTANTE : ("Flotante" | "flotante")>{
-        System.out.println(image + " -> PR_Tipo_De_Dato");
+        matchedToken.image += " -> PR_Tipo_De_Dato";
+        //System.out.println(image + " -> PR_Tipo_De_Dato");
     }
     |
     <CADENA: ("Cadena" | "cadena")>{
-        System.out.println(image + " -> PR_Tipo_De_Dato");
+        matchedToken.image += " -> PR_Tipo_De_Dato";
+        //System.out.println(image + " -> PR_Tipo_De_Dato");
     }
     |
     <CARACTER: ("Caracter" | "caracter")>{
-        System.out.println(image + " -> PR_Tipo_De_Dato");
+        matchedToken.image += " -> PR_Tipo_De_Dato";
+        //System.out.println(image + " -> PR_Tipo_De_Dato");
     }
     |
     <BOOLEANO: ("Booleano" | "booleano")>{
-        System.out.println(image + " -> PR_Tipo_De_Dato");
+        matchedToken.image += " -> PR_Tipo_De_Dato";
+        //System.out.println(image + " -> PR_Tipo_De_Dato");
     }
 }
 
@@ -287,35 +350,43 @@ TOKEN : {
                 "\"", "\'"]>
     |*/
     <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">{
-        System.out.println(image + " -> Cadena_Texto");
+        matchedToken.image += " -> Cadena_Texto";
+        //System.out.println(image + " -> Cadena_Texto");
     }
     |
     <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">{
-        System.out.println(image + " -> Caracter_Texto");
+        matchedToken.image += " -> Caracter_Texto";
+        //System.out.println(image + " -> Caracter_Texto");
     }
     |
     <NUMERO_ENTERO: ("-" | "" | "+")(<NUMERO>)+>{
-        System.out.println(image + " -> Numero_Entero");
+        matchedToken.image += " -> Numero_Entero";
+        //System.out.println(image + " -> Numero_Entero");
     }
     |
     <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)+"."(<NUMERO>)+>{
-        System.out.println(image + " -> Numero_Decimal");
+        matchedToken.image += " -> Numero_Decimal";
+        //System.out.println(image + " -> Numero_Decimal");
     }
     |
     <BOOLEANO_FALSO: "Falso">{
-        System.out.println(image + " -> PR_Booleano_Falso");
+        matchedToken.image += " -> PR_Booleano_Falso";
+        //System.out.println(image + " -> PR_Booleano_Falso");
     }
     |
     <BOOLEANO_VERDADERO: "Verdadero">{
-        System.out.println(image + " -> PR_Booleano_Verdadero");
+        matchedToken.image += " -> PR_Booleano_Verdadero";
+        //System.out.println(image + " -> PR_Booleano_Verdadero");
     }
     |
     <COMENTARIO: "#"( ~["\n", "\r"] )*>{
-        System.out.println(image + " -> Comentario");
+        matchedToken.image += " -> Comentario";
+        //System.out.println(image + " -> Comentario");
     }
     |
     <DELIMITADOR: ";">{
-        System.out.println(image + " -> Delimitador");
+        matchedToken.image += " -> Delimitador";
+        //System.out.println(image + " -> Delimitador");
     }
 
 }
@@ -323,175 +394,215 @@ TOKEN : {
 // Escritura, Lectura y Definición de variables
 TOKEN : {
     <INTERPRETAR: "Interpretar">{
-        System.out.println(image + " -> PR_Lectura");
+        matchedToken.image += " -> PR_Lectura";
+        //System.out.println(image + " -> PR_Lectura");
     }
     |
     <ESCRIBIR: "Escribir">{
-        System.out.println(image + " -> PR_Escritura");
+        matchedToken.image += " -> PR_Escritura";
+        //System.out.println(image + " -> PR_Escritura");
     }
     |
     <ESTABLECER: "Establecer">{
-        System.out.println(image + " -> PR_Definicion_Varible");
+        matchedToken.image += " -> PR_Definicion_Varible";
+        //System.out.println(image + " -> PR_Definicion_Varible");
     }
 }
 
 // Operadores
 TOKEN : {
     <ASIGNACION: "=">{
-        System.out.println(image + " -> Operador_Asignacion");
+        matchedToken.image += " -> Operador_Asignacion";
+        //System.out.println(image + " -> Operador_Asignacion");
     }
     |
     <SUMA: "+">{
-        System.out.println(image + " -> Operador_Suma");
+        matchedToken.image += " -> Operador_Suma";
+        //System.out.println(image + " -> Operador_Suma");
     }
     |
     <RESTA: "-">{
-        System.out.println(image + " -> Operador_Resta");
+        matchedToken.image += " -> Operador_Resta";
+        //System.out.println(image + " -> Operador_Resta");
     }
     |
     <MULTIPLICACION: "*">{
-        System.out.println(image + " -> Operador_Mult");
+        matchedToken.image += " -> Operador_Mult";
+        //System.out.println(image + " -> Operador_Mult");
     }
     |
     <DIVISION: "/">{
-        System.out.println(image + " -> Operador_Div");
+        matchedToken.image += " -> Operador_Div";
+        //System.out.println(image + " -> Operador_Div");
     }
     |
     <MODULO: "%">{
-        System.out.println(image + " -> Operador_Mod");
+        matchedToken.image += " -> Operador_Mod";
+        //System.out.println(image + " -> Operador_Mod");
     }
     |
     <LOGICO_AND: "&&">{
-        System.out.println(image + " -> Operador_Logico_AND");
+        matchedToken.image += " -> Operador_Logico_AND";
+        //System.out.println(image + " -> Operador_Logico_AND");
     }
     |
     <LOGICO_OR: "||">{
-        System.out.println(image + " -> Operador_Logico_OR");
+        matchedToken.image += " -> Operador_Logico_OR";
+        //System.out.println(image + " -> Operador_Logico_OR");
     }
     |
     <LOGICO_NOT: "!">{
-        System.out.println(image + " -> Operador_Logico_NOT");
+        matchedToken.image += " -> Operador_Logico_NOT";
+        //System.out.println(image + " -> Operador_Logico_NOT");
     }
     |
     <ASIGNACION_COMPUESTA: (<SUMA>|<RESTA>|<MULTIPLICACION>|<DIVISION>|<MODULO>|<LOGICO_AND>|<LOGICO_OR>)<ASIGNACION>>{
-        System.out.println(image + " -> Operador_Asignacion_Compuesta");
+        matchedToken.image += " -> Operador_Asignacion_Compuesta";
+        //System.out.println(image + " -> Operador_Asignacion_Compuesta");
     }
     |
     <OPERADOR_IGUAL: "==">{
-        System.out.println(image + " -> Operador_igualQue");
+        matchedToken.image += " -> Operador_igualQue";
+        //System.out.println(image + " -> Operador_igualQue");
     }
     |
     <OPERADOR_DIFERENTE: "!=">{
-        System.out.println(image + " -> Operador_diferente");
+        matchedToken.image += " -> Operador_diferente";
+        //System.out.println(image + " -> Operador_diferente");
     }
     |
     <OPERADOR_MAYOR: ">">{
-        System.out.println(image + " -> Operador_mayorQue");
+        matchedToken.image += " -> Operador_mayorQue";
+        //System.out.println(image + " -> Operador_mayorQue");
     }
     |
     <OPERADOR_MENOR: "<">{
-        System.out.println(image + " -> Operador_menorQue");
+        matchedToken.image += " -> Operador_menorQue";
+        //System.out.println(image + " -> Operador_menorQue");
     }
     |
     <OPERADOR_MAYOR_IGUAL: ">=">{
-        System.out.println(image + " -> Operador_mayorIgualQue");
+        matchedToken.image += " -> Operador_mayorIgualQue";
+        //System.out.println(image + " -> Operador_mayorIgualQue");
     }
     |
     <OPERADOR_MENOR_IGUAL: "<=">{
-        System.out.println(image + " -> Operador_menorIgualQue");
+        matchedToken.image += " -> Operador_menorIgualQue";
+        // System.out.println(image + " -> Operador_menorIgualQue");
     }
     |
     <OPERADOR_DOS_PUNTOS: ":">{
-        System.out.println(image + " -> Operador_Dos_Puntos");
+        matchedToken.image += " -> Operador_Dos_Puntos";
+        //System.out.println(image + " -> Operador_Dos_Puntos");
     }
     |
     <PAREN_ABIERTO: "(">{
-        System.out.println(image + " -> Parentesis_Abierto");
+        matchedToken.image += " -> Parentesis_Abierto";
+        // System.out.println(image + " -> Parentesis_Abierto");
     }
     |
     <PAREN_CERRADO: ")">{
-        System.out.println(image + " -> Parentesis_Cerrado");
+        matchedToken.image += " -> Parentesis_Cerrado";
+        // System.out.println(image + " -> Parentesis_Cerrado");
     }
 }
 
 // Ciclos
 TOKEN : {
     <INICIO_CICLO_PARA: "Para">{
-        System.out.println(image + " -> PR_Ciclo_Para");
+        matchedToken.image += " -> PR_Ciclo_Para";
+        //System.out.println(image + " -> PR_Ciclo_Para");
     }
     |
     <CONDICION_CICLO_PARA: "Hasta que">{
-        System.out.println(image + " -> PR_Condicion_Ciclo_Para");
+        matchedToken.image += " -> PR_Condicion_Ciclo_Para";
+        //System.out.println(image + " -> PR_Condicion_Ciclo_Para");
     }
     |
     <INCREMENTO_CICLO_PARA: "Con incremento">{
-        System.out.println(image + " -> PR_Incremento_Ciclo_Para");
+        matchedToken.image += " -> PR_Incremento_Ciclo_Para";
+        //System.out.println(image + " -> PR_Incremento_Ciclo_Para");
     }
     |
     <FIN_CICLO_PARA: "FinPara">{
-        System.out.println(image + " -> PR_Fin_Ciclo_Para");
+        matchedToken.image += " -> PR_Fin_Ciclo_Para";
+        //System.out.println(image + " -> PR_Fin_Ciclo_Para");
     }
     |
     <INICIO_CICLO_MIENTRAS: "Mientras">{
-        System.out.println(image + " -> PR_Ciclo_Mientras");
+        matchedToken.image += " -> PR_Ciclo_Mientras";
+        //System.out.println(image + " -> PR_Ciclo_Mientras");
     }
     |
     <FIN_CICLO_MIENTRAS: "FinMientras">{
-        System.out.println(image + " -> PR_Fin_Ciclo_Mientras");
+        matchedToken.image += " -> PR_Fin_Ciclo_Mientras";
+        //System.out.println(image + " -> PR_Fin_Ciclo_Mientras");
     }
     |
     <INICIO_CICLO_REPETIR: "Repetir">{
-        System.out.println(image + " -> PR_Ciclo_Repetir");
+        matchedToken.image += " -> PR_Ciclo_Repetir";
+        //System.out.println(image + " -> PR_Ciclo_Repetir");
     }
     |
     <CONDICION_CICLO_REPETIR: "Finaliza cuando">{
-        System.out.println(image + " -> PR_Condicion_Ciclo_Repetir");
+        matchedToken.image += " -> PR_Condicion_Ciclo_Repetir";
+        //System.out.println(image + " -> PR_Condicion_Ciclo_Repetir");
     }
 }
 
 // Condicionales
 TOKEN : {
     <INICIO_CONDICIONAL_SI:"Si"> {
-        System.out.println(image + " -> PR_Condicional_Si");
+        matchedToken.image += " -> PR_Condicional_Si";
+        //System.out.println(image + " -> PR_Condicional_Si");
     }
     |
     <ENTONCES:"Entonces">{
-        System.out.println(image + " -> PR_Entonces");
+        matchedToken.image += " -> PR_Entonces";
+        //System.out.println(image + " -> PR_Entonces");
     }
     |
     <CONDICIONAL_SINO:"Sino">{
-        System.out.println(image + " -> PR_Condicional_Sino");
+        matchedToken.image += " -> PR_Condicional_Sino";
+        //System.out.println(image + " -> PR_Condicional_Sino");
     }
     |
     <FIN_CONDICIONAL_SI:"FinSi">{
-        System.out.println(image + " -> PR_Fin_Condicional_Si");
+        matchedToken.image += " -> PR_Fin_Condicional_Si";
+        //System.out.println(image + " -> PR_Fin_Condicional_Si");
     }
     |
     <INICIO_CONDICIONAL_CONFORME:"Conforme">{
-        System.out.println(image + " -> PR_Condicional_Conforme");
+        matchedToken.image += " -> PR_Condicional_Conforme";
+        //System.out.println(image + " -> PR_Condicional_Conforme");
     }
     |
     <CASO:"Caso">{
-        System.out.println(image + " -> PR_Conforme_Caso");
+        matchedToken.image += " -> PR_Conforme_Caso";
+        //System.out.println(image + " -> PR_Conforme_Caso");
     }
     |
     <CASO_PREDETERMINADO:"En otro caso">{
-        System.out.println(image + " -> PR_Conforme_Caso_Predeterminado");
+        matchedToken.image += " -> PR_Conforme_Caso_Predeterminado";
+        //System.out.println(image + " -> PR_Conforme_Caso_Predeterminado");
     }
     |
     <FIN_CONFORME:"FinConforme">{
-        System.out.println(image + " -> PR_Fin_Condicional_Conforme");
+        matchedToken.image += " -> PR_Fin_Condicional_Conforme";
+        //System.out.println(image + " -> PR_Fin_Condicional_Conforme");
     }
     |
     <HACER : "Hacer">{
-        System.out.println(image + " -> PR_Hacer");
+        matchedToken.image += " -> PR_Hacer";
+        //System.out.println(image + " -> PR_Hacer");
     }
 }
 
 //Variables
 TOKEN : {
     <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>{
-        System.out.println(image + " -> Variable");
+        matchedToken.image += " -> Variable";
+        //System.out.println(image + " -> Variable");
     }
 
 }
@@ -511,15 +622,18 @@ TOKEN : {
     <INVALIDO: ~[]>
 
 }
-// P -> <INICIO> S <FIN>
+
+// Gramaticas
+
 void programa(): { }{
     <INICIO> ( sentencias() )+ <FIN>
 }
 
-// S -> ( DV | LD | ID)+
 void sentencias():{}{
+
     <COMENTARIO> |
-    declaracionVariables() <DELIMITADOR> |
+    sentenciaAsignacion() |
+    sentenciaDeclaracionVariables() |
     leerDato() |
     imprimirDato() |
     sentenciaSi() |
@@ -527,6 +641,38 @@ void sentencias():{}{
     sentenciaPara() |
     sentenciaRepetir() |
     sentenciaMientras()
+
+}
+
+void sentenciaAsignacion():{}{
+
+    try {
+        <VARIABLE> asignacion() <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(DELIMITADOR);
+
+    }
+
+
+}
+
+void sentenciaDeclaracionVariables():{}{
+
+    try {
+        declaracionVariables() <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipToOne(DELIMITADOR);
+
+    }
+
 }
 
 void tiposDato():{}{
@@ -537,17 +683,21 @@ void constantes():{}{
     <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
 }
 
-void asignacionAritmetica():{}{
-    <ASIGNACION> operacionAritmetica()
+void asignacion():{}{
+    ( <ASIGNACION> | <ASIGNACION_COMPUESTA> ) condicion()
 }
 
-void operacionAritmetica():{}{
-    ( <VARIABLE> | constantes() | operacionAritmeticaParentesis() )
-    (operadoresAritmeticos() (<VARIABLE> | constantes() | operacionAritmeticaParentesis() ))*
+void operacion():{}{
+    ( <LOGICO_NOT> )* ( <VARIABLE> | constantes() | operacionParentesis() )
+    (operadores() ( <LOGICO_NOT> )* (<VARIABLE> | constantes() | operacionParentesis() ))*
 }
 
-void operacionAritmeticaParentesis():{}{
-    <PAREN_ABIERTO> operacionAritmetica() <PAREN_CERRADO>
+void operacionParentesis():{}{
+    <PAREN_ABIERTO> operacion() <PAREN_CERRADO>
+}
+
+void operadores():{}{
+    operadoresAritmeticos() | operadoresLogicos()
 }
 
 void operadoresAritmeticos():{}{
@@ -563,51 +713,129 @@ void operadoresLogicos():{}{
 }
 
 void declaracionVariables():{}{
-    <ESTABLECER> tiposDato() <VARIABLE> ( asignacionAritmetica() )?
+    <ESTABLECER> tiposDato() <VARIABLE> ( asignacion() )?
 }
 
 void leerDato():{}{
-    <INTERPRETAR> <VARIABLE> <DELIMITADOR>
+
+    try {
+        <INTERPRETAR> <VARIABLE> <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(DELIMITADOR);
+
+    }
 }
 
 void imprimirDato():{}{
-    <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
+
+    try {
+        <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(DELIMITADOR);
+
+    }
+
 }
 
 void sentenciaSi():{}{
-    <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> ( sentencias() )+
-    ( <CONDICIONAL_SINO> ( sentencias() )+ )?
-    <FIN_CONDICIONAL_SI>
+
+    try {
+        <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> ( sentencias() )+
+        ( <CONDICIONAL_SINO> ( sentencias() )+ )?
+        <FIN_CONDICIONAL_SI>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(FIN_CONDICIONAL_SI);
+
+    }
+
 }
 
-// var1 + 5 < var2 - 2 || 3 + 6 != val3 % 5 <- Lograr esto (Hecho)
-void condicion():{}{
-    ( constantes() | <VARIABLE> | operacionAritmetica() ) operadoresRelacionales()
-    ( constantes() | <VARIABLE>  | operacionAritmetica() ) ( operadoresLogicos() condicion() )*
+// var1 + 5 < var2 - 2 || 3 + 6 != val3 % 5  <- Lograr esto (Hecho)
+void condicion():{} {
+    operacion()
+    ( operadoresRelacionales() operacion() )*
 }
 
 void sentenciaConforme():{}{
-    <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
-    ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )+
-    ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )?
-    <FIN_CONFORME>
+
+    try {
+        <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
+        ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )+
+        ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )?
+        <FIN_CONFORME>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(FIN_CONFORME);
+
+    }
+
 }
 
 void sentenciaPara():{}{
-    <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
-    <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
-    ( sentencias() )+
-    <FIN_CICLO_PARA>
+
+    try {
+        <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
+        <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
+        ( sentencias() )+
+        <FIN_CICLO_PARA>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(FIN_CICLO_PARA);
+
+    }
+
+
 }
 
 void sentenciaRepetir():{}{
-    <INICIO_CICLO_REPETIR> ( sentencias() )+
-    <CONDICION_CICLO_REPETIR> condicion()
+
+    try {
+        <INICIO_CICLO_REPETIR> ( sentencias() )+
+        <CONDICION_CICLO_REPETIR> condicion() <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(DELIMITADOR);
+
+    }
+
 }
 
 void sentenciaMientras():{}{
-    <INICIO_CICLO_MIENTRAS> condicion() <HACER>
-    ( sentencias() )+
-    <FIN_CICLO_MIENTRAS>
+
+    try {
+        <INICIO_CICLO_MIENTRAS> condicion() <HACER>
+        ( sentencias() )+
+        <FIN_CICLO_MIENTRAS>
+    } catch (ParseException ex) {
+
+        System.out.println("Error: ");
+        ex.printStackTrace();
+
+        skipTo(FIN_CICLO_MIENTRAS);
+
+    }
+
+
 }
 

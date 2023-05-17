@@ -1,6 +1,7 @@
 Inicio
 
     Establecer Entero i;
+
     Para i = 0 Hasta que i <= 5 Con incremento 2
         # Codigo
     FinPara
@@ -16,5 +17,6 @@ Inicio
 
     Repetir
         # Codigo
-    Finaliza cuando numero <= 0
+    Finaliza cuando numero <= 0;
+
 Fin
