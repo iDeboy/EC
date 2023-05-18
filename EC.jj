@@ -758,11 +758,11 @@ void sentenciaDeclaracionVariables():{}{
 
 }
 
-void tiposDato():{}{
+void tiposDato():{ }{
     <ENTERO> | <FLOTANTE> | <CADENA> | <CARACTER> | <BOOLEANO>
 }
 
-void constantes():{}{
+void constantes():{ }{
     <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
 }
 
