@@ -21,6 +21,10 @@ PARSER_BEGIN(EC)
         private static String command = "";
         private static String source_file = "";
 
+        private final Integer[] SENTENCES_BEGIN = new Integer[]
+        {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
+        INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
+
         // Lista de errores
         private static final ArrayList<String> errores = new ArrayList<String>();
 
@@ -151,22 +155,20 @@ PARSER_BEGIN(EC)
                 System.out.println("----------------------------------------------");
                 System.out.println("Fase sintáctica:");
                 sintactico.programa();
-                System.out.println("El programa pasó la prueba sintáctica correctamente.");
+
             } catch (FileNotFoundException ex) {
                 System.err.println("Ha ocurrido un problema con el archivo leído.");
                 System.exit(-1);
             } catch (ParseException ex) {
-                ex.printStackTrace();
+                processError(ex, "programa principal");
             }
 
             System.out.println("----------------------------------------------");
 
-            return true;
+            return errores.isEmpty();
         }
 
         public static void main(String[] args) {
-
-            // args = new String[]{"-sin", "ejemplos/Ciclos.txt"};
 
             if (args.length == 0) {
                 usage();
@@ -211,6 +213,8 @@ PARSER_BEGIN(EC)
                         System.err.println("Se encontraron " + errores.size() + " errores durante la prueba léxica:");
                     }
 
+                    System.out.println();
+
                     for (int i = 0; i < errores.size(); i++) {
                         System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
                     }
@@ -234,8 +238,10 @@ PARSER_BEGIN(EC)
                         System.err.println("Se encontraron " + errores.size() + " errores durante la prueba sintáctica:");
                     }
 
+                    System.out.println();
+
                     for (int i = 0; i < errores.size(); i++) {
-                        System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
+                        System.err.println(errores.get(i));
                     }
 
                     System.exit(-1);
@@ -265,30 +271,102 @@ PARSER_BEGIN(EC)
 
         }
 
-        void skipTo(int kind){
+        private void skipTo(Integer end, Integer... kinds){
 
-            Token t;
+            List<Integer> kindsList = Arrays.asList(kinds);
+
+            HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
+            cKinds.add(end);
+            cKinds.add(FIN);
+            cKinds.add(EOF);
+
+            Token oldToken = token;
+            boolean sw = true;
+            int selectedKind = EC.EOF;
+
             do {
-                t = getNextToken();
-            } while (t.kind != kind && t.kind != EC.EOF);
+                token = getNextToken();
+
+                for (Integer kind : cKinds) {
+                    sw &= token.kind != kind;
+
+                    if (!sw) {
+                        selectedKind = kind;
+                        break;
+                    }
+                }
+
+            } while (sw);
+
+            if (selectedKind != end) {
+                token = oldToken;
+                jj_kind = selectedKind;
+            }
 
         }
 
-        void skipToOne(int[] kinds){ // DELIMITADOR o PARA o MIENTRAS o REPETIR o ESTABLECER o ESCRIBIR o INTERPRETAR
+        private static void processError(ParseException ex, String from){
 
-            Token t;
-            boolean sw = true;
-            do {
-                t = getNextToken();
+            // Tokens esperados
+            StringBuilder expected = new StringBuilder();
+            int maxSize = 0;
 
-                for (int kind : kinds) {
-                    sw &= t.kind != kind;
-
-                    if(!sw) break;
+            for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
+                if (maxSize < ex.expectedTokenSequences[i].length) {
+                    maxSize = ex.expectedTokenSequences[i].length;
+                }
+                for (int j = 0; j < ex.expectedTokenSequences[i].length; j++) {
+                    expected.append(ex.tokenImage[ex.expectedTokenSequences[i][j]]).append(' ');
                 }
 
-            } while (sw && t.kind != EC.EOF);
+            }
 
+            Token t = ex.currentToken;
+
+            // Tokens encontrados
+            StringBuilder found = new StringBuilder();
+            Token tok = t.next;
+
+            for (int i = 0; i < maxSize; i++) {
+
+                if (i != 0) found.append(" ");
+
+                if (tok.kind == 0) {
+                    found.append(tokenImage[0]);
+                    break;
+                }
+
+                found.append(tokenImage[tok.kind]);
+
+                tok = tok.next;
+            }
+
+            String[] founds = found.toString().split(" ");
+            String[] expecteds = expected.toString().split(" ");
+
+            StringBuilder msg = new StringBuilder();
+            msg.append("Error sintáctico en ").append(from).append('.');
+            msg.append("\nLínea ").append(t.beginLine).append(", Columna ").append(t.beginColumn).append('.');
+
+            if (founds.length == 1) {
+                msg.append("\nSe encontró el símbolo ").append(founds[0]).append('.');
+            } else {
+                msg.append("\nSe encontraron los símbolos:");
+                for (String f : founds) {
+                    msg.append("\n\t - ").append(f);
+                }
+            }
+
+            if (expecteds.length == 1){
+                msg.append("\nSe esperaba ").append(expecteds[0]).append('.');
+            } else {
+                msg.append("\nSe esperaba uno de los siguientes: ");
+                for (String e : expecteds) {
+                    msg.append("\n\t - ").append(e);
+                }
+            }
+
+            errores.add(msg.toString());
         }
     }
     
@@ -626,7 +704,14 @@ TOKEN : {
 // Gramaticas
 
 void programa(): { }{
-    <INICIO> ( sentencias() )+ <FIN>
+
+    try {
+        <INICIO> ( sentencias() )+ <FIN><EOF>
+    } catch (ParseException ex){
+        processError(ex, "programa principal");
+
+        skipTo(FIN);
+    }
 }
 
 void sentencias():{}{
@@ -650,10 +735,9 @@ void sentenciaAsignacion():{}{
         <VARIABLE> asignacion() <DELIMITADOR>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de asignacion");
 
-        skipTo(DELIMITADOR);
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
 
@@ -666,10 +750,9 @@ void sentenciaDeclaracionVariables():{}{
         declaracionVariables() <DELIMITADOR>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de declaración de variable");
 
-        skipToOne(DELIMITADOR);
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
 
@@ -722,10 +805,9 @@ void leerDato():{}{
         <INTERPRETAR> <VARIABLE> <DELIMITADOR>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de lectura de dato");
 
-        skipTo(DELIMITADOR);
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
 }
@@ -736,10 +818,9 @@ void imprimirDato():{}{
         <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de escritura de dato");
 
-        skipTo(DELIMITADOR);
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
 
@@ -753,8 +834,7 @@ void sentenciaSi():{}{
         <FIN_CONDICIONAL_SI>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia condicional Si");
 
         skipTo(FIN_CONDICIONAL_SI);
 
@@ -777,8 +857,7 @@ void sentenciaConforme():{}{
         <FIN_CONFORME>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia condicional Conforme");
 
         skipTo(FIN_CONFORME);
 
@@ -795,8 +874,7 @@ void sentenciaPara():{}{
         <FIN_CICLO_PARA>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de bucle Para");
 
         skipTo(FIN_CICLO_PARA);
 
@@ -812,10 +890,9 @@ void sentenciaRepetir():{}{
         <CONDICION_CICLO_REPETIR> condicion() <DELIMITADOR>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de bucle Repetir");
 
-        skipTo(DELIMITADOR);
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
 
@@ -829,8 +906,7 @@ void sentenciaMientras():{}{
         <FIN_CICLO_MIENTRAS>
     } catch (ParseException ex) {
 
-        System.out.println("Error: ");
-        ex.printStackTrace();
+        processError(ex, "sentencia de bucle Mientras");
 
         skipTo(FIN_CICLO_MIENTRAS);
 
