@@ -18,7 +18,7 @@ Inicio
             Escribir "El numero es 2";
         Caso 3:
             Escribir "El numero es 3";
-        En Otro Caso:
+        En otro caso:
             Escribir "El numero no esta en el rango";
     FinConforme
 Fin

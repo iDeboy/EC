@@ -1,6 +1,6 @@
 Inicio
 
-    Establecer Entero edad;
+    Establecer Entero i;
 
     Interpretar edad;
 
