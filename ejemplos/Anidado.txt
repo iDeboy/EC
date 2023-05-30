@@ -1,0 +1,49 @@
+Inicio
+
+    Escribir "Programa que imprime el mayor de 3 numeros";
+
+    Establecer Entero num1;
+    Establecer Entero num2;
+    Establecer Entero num3;
+
+    Escribir "Dame el primer numero: ";
+    Interpretar num1;
+
+    Escribir "Dame el segundo numero: ";
+    Interpretar num2;
+
+    Escribir "Dame el tercer numero: ";
+    Interpretar num3;
+
+    Si num1 > num2 Entonces
+
+        Si num1 > num3 Entonces
+            Escribir "El primer numero es el mayor";
+        Sino
+            Escribir "El tercer numero es el mayor";
+        FinSi
+
+    Sino
+
+        Si num2 > num3 Entonces
+            Escribir "El segundo numero es el mayor";
+        Sino
+            Escribir "El tercer numero es el mayor";
+        FinSi
+
+    FinSi
+
+    # Otra manera
+    Si (num1 > num2) && num1 > num3  Entonces
+        Escribir "El primer numero es el mayor";
+    FinSi
+
+    Si num2 > num1 && (num2 > num3)  Entonces
+        Escribir "El segundo numero es el mayor";
+    FinSi
+
+    Si (num3 > num1) && (num3 > num2)  Entonces
+        Escribir "El tercero numero es el mayor";
+    FinSi
+
+Fin

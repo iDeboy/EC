@@ -2,19 +2,19 @@
 options {
     STATIC = false;
     // BUILD_PARSER = false;
-    OUTPUT_DIRECTORY = "compilador";
+    //OUTPUT_DIRECTORY = "compilador";
 }
 
 PARSER_BEGIN(EC)
 
-    package compilador;
+    //package compilador;
 
     import java.io.*;
     import java.util.*;
 
     public class EC {
 
-        private static final String VERSION = "0.1.5";
+        private static final String VERSION = "0.2.5";
         private static final String NAME = EC.class.getSimpleName();
         private static final String PROGRAM = "." + File.separatorChar + NAME;
         private static int index = 0;
@@ -94,7 +94,7 @@ PARSER_BEGIN(EC)
 
         }
 
-        private static boolean checkLex(){
+        private static boolean checkLex(boolean debug){
 
             try {
 
@@ -102,9 +102,6 @@ PARSER_BEGIN(EC)
 
                 // Instanciar objeto de TokenManager y obtener todos los tokens. Ej:
                 ECTokenManager lexico = new ECTokenManager(new SimpleCharStream(sourceFileReader));
-
-                System.out.println("----------------------------------------------");
-                System.out.println("Fase léxica:");
 
                 Token t = lexico.getNextToken();
                 while(t.kind != ECTokenManager.EOF) {
@@ -122,7 +119,8 @@ PARSER_BEGIN(EC)
                                     ". Se encontró un número inválido '" + t.image + "'.\n        " +
                                     "Posible solución: Remover o revisar número.", TokenMgrError.LEXICAL_ERROR);
 
-                        System.out.println(t.image);
+                        if(debug)
+                            System.out.println(t.image);
 
                     } catch (TokenMgrError ex) {
                         errores.add(ex.getMessage());
@@ -137,23 +135,19 @@ PARSER_BEGIN(EC)
                 System.exit(-1);
             }
 
-            System.out.println("----------------------------------------------");
-
             return errores.isEmpty();
 
         }
 
         private static boolean checkSyntax() {
 
-            if (!checkLex())  return false;
+            if (!checkLex(false)) return false;
 
             try {
                 FileReader sourceFileReader = new FileReader(source_file);
 
                 EC sintactico = new EC(sourceFileReader);
 
-                System.out.println("----------------------------------------------");
-                System.out.println("Fase sintáctica:");
                 sintactico.programa();
 
             } catch (FileNotFoundException ex) {
@@ -162,8 +156,6 @@ PARSER_BEGIN(EC)
             } catch (ParseException ex) {
                 processError(ex, "programa principal");
             }
-
-            System.out.println("----------------------------------------------");
 
             return errores.isEmpty();
         }
@@ -201,9 +193,13 @@ PARSER_BEGIN(EC)
 
                     setSourceFile(args);
 
+                    System.out.println("----------------------------------------------");
+                    System.out.println("Fase léxica:");
+
                     // Revisar fase lexica
-                    if (checkLex()){
+                    if (checkLex(true)){
                         System.out.println("Se pasó la prueba léxica con éxito.\nNo se encontraron errores.");
+                        System.out.println("----------------------------------------------");
                         System.exit(0);
                     }
 
@@ -219,6 +215,8 @@ PARSER_BEGIN(EC)
                         System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
                     }
 
+                    System.out.println("----------------------------------------------");
+
                     System.exit(-1);
 
                     break;
@@ -226,9 +224,13 @@ PARSER_BEGIN(EC)
 
                     setSourceFile(args);
 
+                    System.out.println("----------------------------------------------");
+                    System.out.println("Fase sintáctica:");
+
                     // Revisar fase sintectica
                     if(checkSyntax()){
                         System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
+                        System.out.println("----------------------------------------------");
                         System.exit(0);
                     }
 
@@ -244,6 +246,7 @@ PARSER_BEGIN(EC)
                         System.err.println(errores.get(i));
                     }
 
+                    System.out.println("----------------------------------------------");
                     System.exit(-1);
 
                     break;
@@ -770,7 +773,7 @@ void asignacion():{}{
     ( <ASIGNACION> | <ASIGNACION_COMPUESTA> ) condicion()
 }
 
-void operacion():{}{
+void operacion():{ }{
     ( <LOGICO_NOT> )* ( <VARIABLE> | constantes() | operacionParentesis() )
     (operadores() ( <LOGICO_NOT> )* (<VARIABLE> | constantes() | operacionParentesis() ))*
 }
@@ -780,7 +783,7 @@ void operacionParentesis():{}{
 }
 
 void operadores():{}{
-    operadoresAritmeticos() | operadoresLogicos()
+    operadoresAritmeticos() | operadoresLogicos() | operadoresRelacionales()
 }
 
 void operadoresAritmeticos():{}{
