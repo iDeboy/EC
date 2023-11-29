@@ -18,5 +18,5 @@ $ javac *.java
 - Abrir una **terminal**.
 - Ejecutar el siguiente comando:
 ```console
-$ javac EC -h
+$ java EC -h
 ```
