@@ -10,343 +10,12 @@ PARSER_BEGIN(EC)
 
     public class EC {
 
-        private static void usage(){
-
-            System.out.println("USO: " + PROGRAM + " <Comando>");
-            System.out.println(" Compila o revisa la estructura de un código fuente escrito en el lenguaje ELL.");
-            System.out.println(" El <Comando> por defecto es '-c'.");
-            System.out.println("  <Comando>:");
-            System.out.println("    -c <codigo_fuente.txt>");
-            System.out.println("      Compila el código fuente.");
-            System.out.println("    -l <codigo_fuente.txt>");
-            System.out.println("      Revisa la léxica del código fuente.");
-            System.out.println("    -sin <codigo_fuente.txt>");
-            System.out.println("      Revisa la sintaxis del código fuente.");
-            System.out.println("    -h o -u");
-            System.out.println("      Muestra este mensaje de ayuda.");
-            System.out.println("    -v");
-            System.out.println("      Muestra la versión del compilador.");
-            System.out.println();
-        }
-
-        private static void checkTooManyArguments(String[] args){
-            if(args.length > index){
-                usage();
-                System.err.println("ERROR: Hay más de un comando.");
-                System.out.println();
-                System.exit(-1);
-            }
-        }
-
-        private static void setSourceFile(String[] args){
-
-            if(source_file.isEmpty()){
-
-                if(args.length < index + 1){
-                    usage();
-                    System.err.println("ERROR: Debe de ingresar el archivo del código fuente.");
-                    System.out.println();
-                    System.exit(-1);
-                }
-
-                source_file = args[index++];
-                // index = 2
-            }
-
-            checkTooManyArguments(args);
-
-            ensureSourceExists();
-
-        }
-
-        private static void ensureSourceExists(){
-            File file = new File(source_file);
-            if(!file.exists()){
-                usage();
-                System.err.println("ERROR: El archivo " + source_file + " no existe.");
-                System.out.println();
-                System.exit(-1);
-            }
-
-        }
-
-        private static boolean checkLex(boolean debug){
-
-            try {
-
-                FileReader sourceFileReader = new FileReader(source_file);
-
-                // Instanciar objeto de TokenManager y obtener todos los tokens. Ej:
-                ECTokenManager lexico = new ECTokenManager(new SimpleCharStream(sourceFileReader));
-
-                Token t = lexico.getNextToken();
-                while(t.kind != ECTokenManager.EOF) {
-                    try {
-
-                        if (t.kind == ECTokenManager.INVALIDO)
-                            throw new TokenMgrError("Error léxico en línea " +
-                                    t.beginLine + ", columna " + t.beginColumn +
-                                    ". Se encontró símbolo inválido '" + t.image + "'.\n        " +
-                                    "Posible solución: Remover símbolo.", TokenMgrError.LEXICAL_ERROR);
-
-                        if (t.kind == ECTokenManager.NUMERO_INVALIDO)
-                            throw new TokenMgrError("Error léxico en línea " +
-                                    t.beginLine + ", columna " + t.beginColumn +
-                                    ". Se encontró un número inválido '" + t.image + "'.\n        " +
-                                    "Posible solución: Remover o revisar número.", TokenMgrError.LEXICAL_ERROR);
-
-                        if(debug)
-                            System.out.println(t.image);
-
-                    } catch (TokenMgrError ex) {
-                        errores.add(ex.getMessage());
-                    } finally {
-                        t = lexico.getNextToken();
-
-                    }
-                }
-
-            } catch (FileNotFoundException ex) {
-                System.err.println("Ha ocurrido un problema con el archivo leído.");
-                System.exit(-1);
-            }
-
-            return errores.isEmpty();
-
-        }
-
-        private static boolean checkSyntax() {
-
-            if (!checkLex(false)) return false;
-
-            try {
-                FileReader sourceFileReader = new FileReader(source_file);
-
-                EC sintactico = new EC(sourceFileReader);
-
-                sintactico.programa();
-
-            } catch (FileNotFoundException ex) {
-                System.err.println("Ha ocurrido un problema con el archivo leído.");
-                System.exit(-1);
-            } catch (ParseException ex) {
-                processError(ex, "programa principal");
-            }
-
-            return errores.isEmpty();
-        }
 
         public static void main(String[] args) {
 
-            if (args.length == 0) {
-                usage();
-                System.err.println("ERROR: Debe de ingresar el archivo del código fuente o un comando.");
-                System.exit(-1);
-            }
-
-            command = "-c";
-            source_file = "";
-
-            if(args[index].startsWith("-"))
-                command = args[index];
-            else
-                source_file = args[index];
-
-            index++;
-
-            // index = 1
-            switch (command){
-
-                case "-c":
-
-                    setSourceFile(args);
-
-                    // Compilar
-                    unimplemented();
-
-                    break;
-                case "-l":
-
-                    setSourceFile(args);
-
-                    System.out.println("----------------------------------------------");
-                    System.out.println("Fase léxica:");
-
-                    // Revisar fase lexica
-                    if (checkLex(true)){
-                        System.out.println("Se pasó la prueba léxica con éxito.\nNo se encontraron errores.");
-                        System.out.println("----------------------------------------------");
-                        System.exit(0);
-                    }
-
-                    if (errores.size() == 1) {
-                        System.err.println("Se encontró " + errores.size() + " error durante la prueba léxica:");
-                    } else {
-                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba léxica:");
-                    }
-
-                    System.out.println();
-
-                    for (int i = 0; i < errores.size(); i++) {
-                        System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
-                    }
-
-                    System.out.println("----------------------------------------------");
-
-                    System.exit(-1);
-
-                    break;
-                case "-sin":
-
-                    setSourceFile(args);
-
-                    System.out.println("----------------------------------------------");
-                    System.out.println("Fase sintáctica:");
-
-                    // Revisar fase sintectica
-                    if(checkSyntax()){
-                        System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
-                        System.out.println("----------------------------------------------");
-                        System.exit(0);
-                    }
-
-                    if (errores.size() == 1) {
-                        System.err.println("Se encontró " + errores.size() + " error durante la prueba sintáctica:");
-                    } else {
-                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba sintáctica:");
-                    }
-
-                    System.out.println();
-
-                    for (int i = 0; i < errores.size(); i++) {
-                        System.err.println(errores.get(i));
-                    }
-
-                    System.out.println("----------------------------------------------");
-                    System.exit(-1);
-
-                    break;
-                case "-h":
-                case "-u":
-
-                    checkTooManyArguments(args);
-
-                    usage();
-
-                    break;
-                case "-v":
-
-                    checkTooManyArguments(args);
-
-                    System.out.println(NAME + " " + VERSION);
-
-                    break;
-                default:
-                    usage();
-                    System.out.println("ERROR: Commando '" + command + "' no existe.");
-                    System.exit(-1);
-                    break;
-            }
 
         }
 
-        private void skipTo(Integer end, Integer... kinds){
-
-            List<Integer> kindsList = Arrays.asList(kinds);
-
-            HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
-            cKinds.add(end);
-            cKinds.add(FIN);
-            cKinds.add(EOF);
-
-            Token oldToken = token;
-            boolean sw = true;
-            int selectedKind = EC.EOF;
-
-            do {
-                token = getNextToken();
-
-                for (Integer kind : cKinds) {
-                    sw &= token.kind != kind;
-
-                    if (!sw) {
-                        selectedKind = kind;
-                        break;
-                    }
-                }
-
-            } while (sw);
-
-            if (selectedKind != end) {
-                token = oldToken;
-                jj_kind = selectedKind;
-            }
-
-        }
-
-        private static void processError(ParseException ex, String from){
-
-            // Tokens esperados
-            StringBuilder expected = new StringBuilder();
-            int maxSize = 0;
-
-            for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
-                if (maxSize < ex.expectedTokenSequences[i].length) {
-                    maxSize = ex.expectedTokenSequences[i].length;
-                }
-                for (int j = 0; j < ex.expectedTokenSequences[i].length; j++) {
-                    expected.append(ex.tokenImage[ex.expectedTokenSequences[i][j]]).append(' ');
-                }
-
-            }
-
-            Token t = ex.currentToken;
-
-            // Tokens encontrados
-            StringBuilder found = new StringBuilder();
-            Token tok = t.next;
-
-            for (int i = 0; i < maxSize; i++) {
-
-                if (i != 0) found.append(" ");
-
-                if (tok.kind == 0) {
-                    found.append(tokenImage[0]);
-                    break;
-                }
-
-                found.append(tokenImage[tok.kind]);
-
-                tok = tok.next;
-            }
-
-            String[] founds = found.toString().split(" ");
-            String[] expecteds = expected.toString().split(" ");
-
-            StringBuilder msg = new StringBuilder();
-            msg.append("Error sintáctico en ").append(from).append('.');
-            msg.append("\nLínea ").append(t.beginLine).append(", Columna ").append(t.beginColumn).append('.');
-
-            if (founds.length == 1) {
-                msg.append("\nSe encontró el símbolo ").append(founds[0]).append('.');
-            } else {
-                msg.append("\nSe encontraron los símbolos:");
-                for (String f : founds) {
-                    msg.append("\n\t - ").append(f);
-                }
-            }
-
-            if (expecteds.length == 1){
-                msg.append("\nSe esperaba ").append(expecteds[0]).append('.');
-            } else {
-                msg.append("\nSe esperaba uno de los siguientes: ");
-                for (String e : expecteds) {
-                    msg.append("\n\t - ").append(e);
-                }
-            }
-
-            errores.add(msg.toString());
-        }
     }
     
 PARSER_END(EC)
@@ -354,45 +23,24 @@ PARSER_END(EC)
 // Inicio y fin del programa
 TOKEN : {
 
-    <INICIO: "Inicio">{
-        matchedToken.image += " -> PR_Arranque_Programa";
-        //System.out.println(image + " -> PR_Arranque_Programa");
-    }
+    <INICIO: "Inicio">
     |
-    <FIN: "Fin">{
-        matchedToken.image += " -> PR_Fin_Programa";
-        // System.out.println(image + " -> PR_Fin_Programa");
-    }
+    <FIN: "Fin">
 
 }
 
 // Tipos de dato
 TOKEN : {
 
-    <ENTERO: ("Entero" | "entero")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <ENTERO: ("Entero" | "entero")>
     |
-    <FLOTANTE : ("Flotante" | "flotante")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <FLOTANTE : ("Flotante" | "flotante")>
     |
-    <CADENA: ("Cadena" | "cadena")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <CADENA: ("Cadena" | "cadena")>
     |
-    <CARACTER: ("Caracter" | "caracter")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <CARACTER: ("Caracter" | "caracter")>
     |
-    <BOOLEANO: ("Booleano" | "booleano")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <BOOLEANO: ("Booleano" | "booleano")>
 }
 
 // Constantes/Literales
@@ -401,266 +49,113 @@ TOKEN : {
     |
     <#NUMERO: ["0" - "9"]>
     |
-   /*<#SIMBOLO: [",", ".", " ", ":", "°", "!", "¬", "|", "#", "$", "%", "&",
-                "/", "(", ")", "=", "?", "¿", "¡", "@", "¨", "´", "+", "*",
-                "~", "{", "[", "^", "}", "]", "`", "<", ">", ";", "-", "_", "\\",
-                "\"", "\'"]>
-    |*/
-    <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">{
-        matchedToken.image += " -> Cadena_Texto";
-        //System.out.println(image + " -> Cadena_Texto");
-    }
+    <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">
     |
-    <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">{
-        matchedToken.image += " -> Caracter_Texto";
-        //System.out.println(image + " -> Caracter_Texto");
-    }
+    <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">
     |
-    <NUMERO_ENTERO: ("-" | "" | "+")(<NUMERO>)+>{
-        matchedToken.image += " -> Numero_Entero";
-        //System.out.println(image + " -> Numero_Entero");
-    }
+    <NUMERO_ENTERO: ("-" | "" | "+")(<NUMERO>)+>
     |
-    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)+"."(<NUMERO>)+>{
-        matchedToken.image += " -> Numero_Decimal";
-        //System.out.println(image + " -> Numero_Decimal");
-    }
+    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)+"."(<NUMERO>)+>
     |
-    <BOOLEANO_FALSO: "Falso">{
-        matchedToken.image += " -> PR_Booleano_Falso";
-        //System.out.println(image + " -> PR_Booleano_Falso");
-    }
+    <BOOLEANO_FALSO: "Falso">
     |
-    <BOOLEANO_VERDADERO: "Verdadero">{
-        matchedToken.image += " -> PR_Booleano_Verdadero";
-        //System.out.println(image + " -> PR_Booleano_Verdadero");
-    }
+    <BOOLEANO_VERDADERO: "Verdadero">
     |
-    <COMENTARIO: "#"( ~["\n", "\r"] )*>{
-        matchedToken.image += " -> Comentario";
-        //System.out.println(image + " -> Comentario");
-    }
-    |
-    <DELIMITADOR: ";">{
-        matchedToken.image += " -> Delimitador";
-        //System.out.println(image + " -> Delimitador");
-    }
+    <DELIMITADOR: ";">
 
 }
 
 // Escritura, Lectura y Definición de variables
 TOKEN : {
-    <INTERPRETAR: "Interpretar">{
-        matchedToken.image += " -> PR_Lectura";
-        //System.out.println(image + " -> PR_Lectura");
-    }
+    <INTERPRETAR: "Interpretar">
     |
-    <ESCRIBIR: "Escribir">{
-        matchedToken.image += " -> PR_Escritura";
-        //System.out.println(image + " -> PR_Escritura");
-    }
+    <ESCRIBIR: "Escribir">
     |
-    <ESTABLECER: "Establecer">{
-        matchedToken.image += " -> PR_Definicion_Varible";
-        //System.out.println(image + " -> PR_Definicion_Varible");
-    }
+    <ESTABLECER: "Establecer">
 }
 
 // Operadores
 TOKEN : {
-    <ASIGNACION: "=">{
-        matchedToken.image += " -> Operador_Asignacion";
-        //System.out.println(image + " -> Operador_Asignacion");
-    }
+    <ASIGNACION: "=">
     |
-    <SUMA: "+">{
-        matchedToken.image += " -> Operador_Suma";
-        //System.out.println(image + " -> Operador_Suma");
-    }
+    <SUMA: "+">
     |
-    <RESTA: "-">{
-        matchedToken.image += " -> Operador_Resta";
-        //System.out.println(image + " -> Operador_Resta");
-    }
+    <RESTA: "-">
     |
-    <MULTIPLICACION: "*">{
-        matchedToken.image += " -> Operador_Mult";
-        //System.out.println(image + " -> Operador_Mult");
-    }
+    <MULTIPLICACION: "*">
     |
-    <DIVISION: "/">{
-        matchedToken.image += " -> Operador_Div";
-        //System.out.println(image + " -> Operador_Div");
-    }
+    <DIVISION: "/">
     |
-    <MODULO: "%">{
-        matchedToken.image += " -> Operador_Mod";
-        //System.out.println(image + " -> Operador_Mod");
-    }
+    <MODULO: "%">
     |
-    <LOGICO_AND: "&&">{
-        matchedToken.image += " -> Operador_Logico_AND";
-        //System.out.println(image + " -> Operador_Logico_AND");
-    }
+    <LOGICO_AND: "&&">
     |
-    <LOGICO_OR: "||">{
-        matchedToken.image += " -> Operador_Logico_OR";
-        //System.out.println(image + " -> Operador_Logico_OR");
-    }
+    <LOGICO_OR: "||">
     |
-    <LOGICO_NOT: "!">{
-        matchedToken.image += " -> Operador_Logico_NOT";
-        //System.out.println(image + " -> Operador_Logico_NOT");
-    }
+    <LOGICO_NOT: "!">
     |
-    <ASIGNACION_COMPUESTA: (<SUMA>|<RESTA>|<MULTIPLICACION>|<DIVISION>|<MODULO>|<LOGICO_AND>|<LOGICO_OR>)<ASIGNACION>>{
-        matchedToken.image += " -> Operador_Asignacion_Compuesta";
-        //System.out.println(image + " -> Operador_Asignacion_Compuesta");
-    }
+    <OPERADOR_IGUAL: "==">
     |
-    <OPERADOR_IGUAL: "==">{
-        matchedToken.image += " -> Operador_igualQue";
-        //System.out.println(image + " -> Operador_igualQue");
-    }
+    <OPERADOR_DIFERENTE: "!=">
     |
-    <OPERADOR_DIFERENTE: "!=">{
-        matchedToken.image += " -> Operador_diferente";
-        //System.out.println(image + " -> Operador_diferente");
-    }
+    <OPERADOR_MAYOR: ">">
     |
-    <OPERADOR_MAYOR: ">">{
-        matchedToken.image += " -> Operador_mayorQue";
-        //System.out.println(image + " -> Operador_mayorQue");
-    }
+    <OPERADOR_MENOR: "<">
     |
-    <OPERADOR_MENOR: "<">{
-        matchedToken.image += " -> Operador_menorQue";
-        //System.out.println(image + " -> Operador_menorQue");
-    }
+    <OPERADOR_MAYOR_IGUAL: ">=">
     |
-    <OPERADOR_MAYOR_IGUAL: ">=">{
-        matchedToken.image += " -> Operador_mayorIgualQue";
-        //System.out.println(image + " -> Operador_mayorIgualQue");
-    }
+    <OPERADOR_MENOR_IGUAL: "<=">
     |
-    <OPERADOR_MENOR_IGUAL: "<=">{
-        matchedToken.image += " -> Operador_menorIgualQue";
-        // System.out.println(image + " -> Operador_menorIgualQue");
-    }
+    <OPERADOR_DOS_PUNTOS: ":">
     |
-    <OPERADOR_DOS_PUNTOS: ":">{
-        matchedToken.image += " -> Operador_Dos_Puntos";
-        //System.out.println(image + " -> Operador_Dos_Puntos");
-    }
+    <PAREN_ABIERTO: "(">
     |
-    <PAREN_ABIERTO: "(">{
-        matchedToken.image += " -> Parentesis_Abierto";
-        // System.out.println(image + " -> Parentesis_Abierto");
-    }
-    |
-    <PAREN_CERRADO: ")">{
-        matchedToken.image += " -> Parentesis_Cerrado";
-        // System.out.println(image + " -> Parentesis_Cerrado");
-    }
+    <PAREN_CERRADO: ")">
 }
 
 // Ciclos
 TOKEN : {
-    <INICIO_CICLO_PARA: "Para">{
-        matchedToken.image += " -> PR_Ciclo_Para";
-        //System.out.println(image + " -> PR_Ciclo_Para");
-    }
+    <INICIO_CICLO_PARA: "Para">
     |
-    <CONDICION_CICLO_PARA: "Hasta que">{
-        matchedToken.image += " -> PR_Condicion_Ciclo_Para";
-        //System.out.println(image + " -> PR_Condicion_Ciclo_Para");
-    }
+    <CONDICION_CICLO_PARA: "Hasta que">
     |
-    <INCREMENTO_CICLO_PARA: "Con incremento">{
-        matchedToken.image += " -> PR_Incremento_Ciclo_Para";
-        //System.out.println(image + " -> PR_Incremento_Ciclo_Para");
-    }
+    <INCREMENTO_CICLO_PARA: "Con incremento">
     |
-    <FIN_CICLO_PARA: "FinPara">{
-        matchedToken.image += " -> PR_Fin_Ciclo_Para";
-        //System.out.println(image + " -> PR_Fin_Ciclo_Para");
-    }
+    <FIN_CICLO_PARA: "FinPara">
     |
-    <INICIO_CICLO_MIENTRAS: "Mientras">{
-        matchedToken.image += " -> PR_Ciclo_Mientras";
-        //System.out.println(image + " -> PR_Ciclo_Mientras");
-    }
+    <INICIO_CICLO_MIENTRAS: "Mientras">
     |
-    <FIN_CICLO_MIENTRAS: "FinMientras">{
-        matchedToken.image += " -> PR_Fin_Ciclo_Mientras";
-        //System.out.println(image + " -> PR_Fin_Ciclo_Mientras");
-    }
+    <FIN_CICLO_MIENTRAS: "FinMientras">
     |
-    <INICIO_CICLO_REPETIR: "Repetir">{
-        matchedToken.image += " -> PR_Ciclo_Repetir";
-        //System.out.println(image + " -> PR_Ciclo_Repetir");
-    }
+    <INICIO_CICLO_REPETIR: "Repetir">
     |
-    <CONDICION_CICLO_REPETIR: "Finaliza cuando">{
-        matchedToken.image += " -> PR_Condicion_Ciclo_Repetir";
-        //System.out.println(image + " -> PR_Condicion_Ciclo_Repetir");
-    }
+    <CONDICION_CICLO_REPETIR: "Finaliza cuando">
 }
 
 // Condicionales
 TOKEN : {
-    <INICIO_CONDICIONAL_SI:"Si"> {
-        matchedToken.image += " -> PR_Condicional_Si";
-        //System.out.println(image + " -> PR_Condicional_Si");
-    }
+    <INICIO_CONDICIONAL_SI:"Si">
     |
-    <ENTONCES:"Entonces">{
-        matchedToken.image += " -> PR_Entonces";
-        //System.out.println(image + " -> PR_Entonces");
-    }
+    <ENTONCES:"Entonces">
     |
-    <CONDICIONAL_SINO:"Sino">{
-        matchedToken.image += " -> PR_Condicional_Sino";
-        //System.out.println(image + " -> PR_Condicional_Sino");
-    }
+    <CONDICIONAL_SINO:"Sino">
     |
-    <FIN_CONDICIONAL_SI:"FinSi">{
-        matchedToken.image += " -> PR_Fin_Condicional_Si";
-        //System.out.println(image + " -> PR_Fin_Condicional_Si");
-    }
+    <FIN_CONDICIONAL_SI:"FinSi">
     |
-    <INICIO_CONDICIONAL_CONFORME:"Conforme">{
-        matchedToken.image += " -> PR_Condicional_Conforme";
-        //System.out.println(image + " -> PR_Condicional_Conforme");
-    }
+    <INICIO_CONDICIONAL_CONFORME:"Conforme">
     |
-    <CASO:"Caso">{
-        matchedToken.image += " -> PR_Conforme_Caso";
-        //System.out.println(image + " -> PR_Conforme_Caso");
-    }
+    <CASO:"Caso">
     |
-    <CASO_PREDETERMINADO:"En otro caso">{
-        matchedToken.image += " -> PR_Conforme_Caso_Predeterminado";
-        //System.out.println(image + " -> PR_Conforme_Caso_Predeterminado");
-    }
+    <CASO_PREDETERMINADO:"En otro caso">
     |
-    <FIN_CONFORME:"FinConforme">{
-        matchedToken.image += " -> PR_Fin_Condicional_Conforme";
-        //System.out.println(image + " -> PR_Fin_Condicional_Conforme");
-    }
+    <FIN_CONFORME:"FinConforme">
     |
-    <HACER : "Hacer">{
-        matchedToken.image += " -> PR_Hacer";
-        //System.out.println(image + " -> PR_Hacer");
-    }
+    <HACER : "Hacer">
 }
 
 //Variables
 TOKEN : {
-    <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>{
-        matchedToken.image += " -> Variable";
-        //System.out.println(image + " -> Variable");
-    }
+    <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>
 
 }
 
@@ -669,14 +164,14 @@ SKIP : {
     | "\t"
     | "\r\n"
     | "\n"
-}
+    | <COMENTARIO: "#"( ~["\n", "\r"] )*>
 
-// Tokens invalidos
-TOKEN : {
+    // Tokens invalidos
+    | <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>
+    | <INVALIDO: ~[]>{
 
-    <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>
-    |
-    <INVALIDO: ~[]>
+
+    }
 
 }
 
@@ -695,7 +190,6 @@ void programa(): { }{
 
 void sentencias():{}{
 
-    <COMENTARIO> |
     sentenciaAsignacion() |
     sentenciaDeclaracionVariables() |
     leerDato() |
@@ -746,7 +240,7 @@ void constantes():{ }{
 }
 
 void asignacion():{}{
-    ( <ASIGNACION> | <ASIGNACION_COMPUESTA> ) condicion()
+    <ASIGNACION>  condicion()
 }
 
 void operacion():{ }{
