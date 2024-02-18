@@ -1,38 +1,14 @@
 
 options {
     STATIC = false;
-    // BUILD_PARSER = false;
-    //OUTPUT_DIRECTORY = "compilador";
 }
 
 PARSER_BEGIN(EC)
-
-    //package compilador;
 
     import java.io.*;
     import java.util.*;
 
     public class EC {
-
-        private static final String VERSION = "0.2.5";
-        private static final String NAME = EC.class.getSimpleName();
-        private static final String PROGRAM = "." + File.separatorChar + NAME;
-        private static int index = 0;
-        private static String command = "";
-        private static String source_file = "";
-
-        private final Integer[] SENTENCES_BEGIN = new Integer[]
-        {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
-        INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
-
-        // Lista de errores
-        private static final ArrayList<String> errores = new ArrayList<String>();
-
-        private static void unimplemented(){
-            System.out.println("ERROR: El comando '" + command + "' todavia no esta implementado.");
-            System.out.println();
-            System.exit(-1);
-        }
 
         private static void usage(){
 
