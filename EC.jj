@@ -10,15 +10,172 @@ PARSER_BEGIN(EC)
 
     public class EC {
 
+        final Integer[] SENTENCES_BEGIN = new Integer[]
+                {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
+                INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
+
+        final ArrayList<String> tablaErrores = new ArrayList<String>();
 
         public static void main(String[] args) {
 
+            if (args.length == 0) {
+                System.err.println("ERROR: Debe de ingresar el archivo del código fuente.");
+                System.exit(-1);
+                return;
+            }
+
+            try {
+                FileReader sourceFileReader = new FileReader(args[0]);
+
+                EC ec = new EC(sourceFileReader);
+
+                ec.programa();
+
+                var errores = ec.tablaErrores;
+                if(errores.isEmpty()){
+                    System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
+                    System.out.println("----------------------------------------------");
+                    System.exit(0);
+                }
+
+                if (errores.size() == 1) {
+                    System.err.println("Se encontró " + errores.size() + " error durante la prueba sintáctica:");
+                } else {
+                    System.err.println("Se encontraron " + errores.size() + " errores durante la prueba sintáctica:");
+                }
+
+                System.out.println();
+
+                for (int i = 0; i < errores.size(); i++) {
+                    System.err.println(errores.get(i));
+                }
+
+                System.out.println("----------------------------------------------");
+                System.exit(-1);
+
+            } catch (FileNotFoundException ex) {
+                System.err.println("No se encontró el archivo.");
+                System.exit(-1);
+            }catch (ParseException ex) {
+                 System.err.println("Ha ocurrido un error inesperado, intente de nuevo.");
+                 System.exit(-1);
+            }
+
+        }
+
+        public EC(FileReader fileReader) {
+            this((Reader)fileReader);
+
+            token_source.compilador = this;
+
+        }
+
+        private void processError(ParseException ex, String from){
+
+            // Tokens esperados
+            StringBuilder expected = new StringBuilder();
+            int maxSize = 0;
+
+            for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
+                if (maxSize < ex.expectedTokenSequences[i].length) {
+                    maxSize = ex.expectedTokenSequences[i].length;
+                }
+                for (int j = 0; j < ex.expectedTokenSequences[i].length; j++) {
+                    expected.append(ex.tokenImage[ex.expectedTokenSequences[i][j]]).append(' ');
+                }
+
+            }
+
+            Token t = ex.currentToken;
+
+            // Tokens encontrados
+            StringBuilder found = new StringBuilder();
+            Token tok = t.next;
+
+            for (int i = 0; i < maxSize; i++) {
+
+                if (i != 0) found.append(" ");
+
+                if (tok.kind == 0) {
+                    found.append(tokenImage[0]);
+                    break;
+                }
+
+                found.append(tokenImage[tok.kind]);
+
+                tok = tok.next;
+            }
+
+            String[] founds = found.toString().split(" ");
+            String[] expecteds = expected.toString().split(" ");
+
+            StringBuilder msg = new StringBuilder();
+            msg.append("Error sint\u00e1ctico en ").append(from).append('.');
+            msg.append("\nL\u00ednea ").append(t.beginLine).append(", Columna ").append(t.beginColumn).append('.');
+
+            if (founds.length == 1) {
+                msg.append("\nSe encontr\u00f3 el s\u00edmbolo ").append(founds[0]).append('.');
+            } else {
+                msg.append("\nSe encontraron los s\u00edmbolos:");
+                for (String f : founds) {
+                    msg.append("\n\t - ").append(f);
+                }
+            }
+
+            if (expecteds.length == 1){
+                msg.append("\nSe esperaba ").append(expecteds[0]).append('.');
+            } else {
+                msg.append("\nSe esperaba uno de los siguientes: ");
+                for (String e : expecteds) {
+                    msg.append("\n\t - ").append(e);
+                }
+            }
+
+            tablaErrores.add(msg.toString());
+        }
+
+        private void skipTo(Integer end, Integer... kinds){
+
+            List<Integer> kindsList = Arrays.asList(kinds);
+
+            HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
+            cKinds.add(end);
+            cKinds.add(FIN);
+            cKinds.add(EOF);
+
+            Token oldToken = token;
+            boolean sw = true;
+            int selectedKind = EC.EOF;
+
+            do {
+                token = getNextToken();
+
+                for (Integer kind : cKinds) {
+                    sw &= token.kind != kind;
+
+                    if (!sw) {
+                        selectedKind = kind;
+                        break;
+                    }
+                }
+
+            } while (sw);
+
+            if (selectedKind != end) {
+                token = oldToken;
+                jj_kind = selectedKind;
+            }
 
         }
 
     }
     
 PARSER_END(EC)
+
+TOKEN_MGR_DECLS:{
+    EC compilador;
+
+}
 
 // Inicio y fin del programa
 TOKEN : {
@@ -156,7 +313,6 @@ TOKEN : {
 //Variables
 TOKEN : {
     <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>
-
 }
 
 SKIP : {
@@ -167,9 +323,20 @@ SKIP : {
     | <COMENTARIO: "#"( ~["\n", "\r"] )*>
 
     // Tokens invalidos
-    | <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>
+    | <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>{
+
+        compilador.tablaErrores.add("Error léxico en línea " +
+                         matchedToken.beginLine + ", columna " + matchedToken.beginColumn +
+                         ". Se encontró un número inválido '" + matchedToken.image + "'.\n" +
+                         "        Posible solución: Remover o revisar número.");
+
+    }
     | <INVALIDO: ~[]>{
 
+        compilador.tablaErrores.add("Error léxico en línea " +
+                     matchedToken.beginLine + ", columna " + matchedToken.beginColumn +
+                     ". Se encontró símbolo inválido '" + matchedToken.image + "'.\n" +
+                     "        Posible solución: Remover símbolo.");
 
     }
 
@@ -182,6 +349,7 @@ void programa(): { }{
     try {
         <INICIO> ( sentencias() )+ <FIN><EOF>
     } catch (ParseException ex){
+
         processError(ex, "programa principal");
 
         skipTo(FIN);
@@ -315,7 +483,6 @@ void sentenciaSi():{}{
 
 }
 
-// var1 + 5 < var2 - 2 || 3 + 6 != val3 % 5  <- Lograr esto (Hecho)
 void condicion():{} {
     operacion()
     ( operadoresRelacionales() operacion() )*
