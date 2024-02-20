@@ -443,7 +443,7 @@ void sentenciaAsignacion():{ }{
 void sentenciaDeclaracion() : { }{
 
     try {
-        ( declaracionVariables() | declaracionArreglo() ) <DELIMITADOR>
+        declaracion() <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de declaración");
@@ -457,7 +457,7 @@ void sentenciaDeclaracion() : { }{
 void sentenciaDeclaracionVariables():{ }{
 
     try {
-        declaracionVariables() <DELIMITADOR>
+        declaracion() <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de declaración de variable");
@@ -560,12 +560,9 @@ void operadoresLogicos():{ }{
 }
 
 // Nuevo
-void declaracionArreglo():{ }{
-    <ESTABLECER> tiposDato() <INDICE_ABIERTO> expresion() <INDICE_CERRADO> <VARIABLE>
-}
-
-void declaracionVariables():{ }{
-    <ESTABLECER> tiposDato() <VARIABLE> ( asignacion() )?
+void declaracion():{ }{
+    <ESTABLECER> tiposDato() ( <INDICE_ABIERTO> expresion() <INDICE_CERRADO> )? <VARIABLE>
+    ( asignacion() )?
 }
 
 void leerDato():{ }{
@@ -633,7 +630,7 @@ void sentenciaConforme():{}{
 void sentenciaPara():{}{
 
     try {
-        <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
+        <INICIO_CICLO_PARA> ( ( <VARIABLE> <ASIGNACION> expresion() ) | declaracion() )
         <CONDICION_CICLO_PARA> expresion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
         ( sentencias() )*
         <FIN_CICLO_PARA>
