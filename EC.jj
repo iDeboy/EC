@@ -197,10 +197,8 @@ TOKEN_MGR_DECLS:{
 // Inicio y fin del programa
 TOKEN : {
 
-    // Eliminado
     <INICIO: "Inicio">
     |
-    // Eliminado
     <FIN: "Fin">
 
 }
@@ -381,14 +379,24 @@ SKIP : {
 
 // Gramaticas
 
-// Nuevo
-void argumentos() : { } {
-    ( tiposDato() <VARIABLE> ( <COMA> tiposDato() <VARIABLE> )* )?
+// Editado
+void argumentos() : { }{
+    expresion() ( <COMA> expresion() )*
+}
+
+// Editado
+void declaracionArgumentos() : { } {
+    tiposDato() <VARIABLE> ( <COMA> tiposDato() <VARIABLE> )*
 }
 
 // Nuevo
+void llamadaFuncion() : { }{
+    <VARIABLE> <PAREN_ABIERTO> ( declaracionArgumentos() )? <PAREN_CERRADO>
+}
+
+// editado
 void declaracionFuncion() : { }{
-    <FUNCION> ( tiposDato() )? <VARIABLE> <PAREN_ABIERTO> argumentos() <PAREN_CERRADO>
+    <FUNCION> ( tiposDato() )? <VARIABLE> <PAREN_ABIERTO> declaracionArgumentos() <PAREN_CERRADO>
     ( sentencias() )*
     ( <RETORNAR> expresion() <DELIMITADOR> )?
     <FIN_FUNCION> <VARIABLE>
@@ -398,7 +406,9 @@ void programa(): { }{
 
     try {
         // Nuevo
-        ( declaracionFuncion() )+
+        ( declaracionFuncion() )*
+        <INICIO> ( sentencias() )+ <FIN>
+        ( declaracionFuncion() )*
         <EOF>
 
         // Eliminado
@@ -519,9 +529,11 @@ void termino(): { }{
     factor() ( ( <MULTIPLICACION> | <DIVISION> | <MODULO> ) factor() )*
 }
 
-// Nuevo
+// Editado
 void factor() : { }{
-    <VARIABLE> ( indiceArreglo() )? |
+    LOOKAHEAD(2) <VARIABLE> indiceArreglo() |
+    LOOKAHEAD(2) <VARIABLE> <PAREN_ABIERTO> ( argumentos() )? <PAREN_CERRADO> |
+    <VARIABLE> |
     constantes() |
     <PAREN_ABIERTO> expresion() <PAREN_CERRADO> |
     <LOGICO_NOT> factor()
@@ -585,10 +597,11 @@ void leerDato():{ }{
     }
 }
 
+// Editado
 void imprimirDato():{}{
 
     try {
-        <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
+        <ESCRIBIR> expresion() <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de escritura de dato");
