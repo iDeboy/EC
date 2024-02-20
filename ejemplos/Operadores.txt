@@ -1,4 +1,4 @@
-Inicio
+Funcion Main()
 
     Establecer Entero numero1 = 5;
 
@@ -48,4 +48,4 @@ Inicio
 
     Establecer Booleano menorIgual = numero1 <= numero2;
 
-Fin
+FinFuncion Main

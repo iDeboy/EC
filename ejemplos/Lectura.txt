@@ -1,7 +1,7 @@
-Inicio
+Funcion Main()
 
     Establecer Entero i;
 
     Interpretar edad;
 
-Fin
+FinFuncion Main

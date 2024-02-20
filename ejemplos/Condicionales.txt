@@ -1,5 +1,7 @@
-Inicio
+Funcion Main()
+
     Establecer Entero numero1 = 10;
+
     Establecer Entero numero2 = -5;
 
     Si numero1 > numero2 Entonces
@@ -21,4 +23,5 @@ Inicio
         En otro caso:
             Escribir "El numero no esta en el rango";
     FinConforme
-Fin
+
+FinFuncion Main

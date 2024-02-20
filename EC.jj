@@ -15,6 +15,7 @@ PARSER_BEGIN(EC)
                 INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
 
         final ArrayList<String> tablaErrores = new ArrayList<String>();
+        final HashMap<String, Token> tablaSimbolos = new HashMap<String, Token>();
 
         public static void main(String[] args) {
 
@@ -32,6 +33,9 @@ PARSER_BEGIN(EC)
                 ec.programa();
 
                 var errores = ec.tablaErrores;
+
+                System.out.println("----------------------------------------------");
+
                 if(errores.isEmpty()){
                     System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
                     System.out.println("----------------------------------------------");
@@ -46,8 +50,8 @@ PARSER_BEGIN(EC)
 
                 System.out.println();
 
-                for (int i = 0; i < errores.size(); i++) {
-                    System.err.println(errores.get(i));
+                for (String error : errores) {
+                    System.err.println(error);
                 }
 
                 System.out.println("----------------------------------------------");
@@ -140,7 +144,7 @@ PARSER_BEGIN(EC)
 
             HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
             cKinds.add(end);
-            cKinds.add(FIN);
+            cKinds.add(FIN_FUNCION);
             cKinds.add(EOF);
 
             Token oldToken = token;
@@ -169,21 +173,47 @@ PARSER_BEGIN(EC)
         }
 
     }
-    
+
 PARSER_END(EC)
 
 TOKEN_MGR_DECLS:{
     EC compilador;
-
 }
+
+/*
+*
+* Funcion Main()
+*
+*   Establecer Entero r = Suma(5,6);
+*
+* FinFuncion Main
+*
+* Funcion Entero Suma(Entero x, Entero y)
+*   Retornar x + y;
+* FinFuncion Suma
+*
+* */
 
 // Inicio y fin del programa
 TOKEN : {
 
+    // Eliminado
     <INICIO: "Inicio">
     |
+    // Eliminado
     <FIN: "Fin">
 
+}
+
+// Nuevo
+// Funciones
+TOKEN : {
+
+    <COMA: ",">
+    |
+    <FUNCION: "Funcion" >
+    |
+    <FIN_FUNCION: "FinFuncion">
 }
 
 // Tipos de dato
@@ -191,7 +221,7 @@ TOKEN : {
 
     <ENTERO: ("Entero" | "entero")>
     |
-    <FLOTANTE : ("Flotante" | "flotante")>
+    <FLOTANTE: ("Flotante" | "flotante")>
     |
     <CADENA: ("Cadena" | "cadena")>
     |
@@ -268,6 +298,12 @@ TOKEN : {
     <PAREN_ABIERTO: "(">
     |
     <PAREN_CERRADO: ")">
+    |
+    // Nuevo
+    <INDICE_ABIERTO: "[">
+    |
+    // Nuevo
+    <INDICE_CERRADO: "]">
 }
 
 // Ciclos
@@ -320,8 +356,7 @@ SKIP : {
     | "\t"
     | "\r\n"
     | "\n"
-    | <COMENTARIO: "#"( ~["\n", "\r"] )*>
-
+    | <COMENTARIO: "#" (~["\r", "\n"])* ( ( "\r" )? "\n" | "\r")>
     // Tokens invalidos
     | <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>{
 
@@ -344,22 +379,42 @@ SKIP : {
 
 // Gramaticas
 
+// Nuevo
+void argumentos() : { } {
+    ( tiposDato() <VARIABLE> ( <COMA> tiposDato() <VARIABLE> )* )?
+}
+
+// Nuevo
+void declaracionFuncion() : { }{
+    <FUNCION> ( tiposDato() )? <VARIABLE> <PAREN_ABIERTO> argumentos() <PAREN_CERRADO>
+    ( sentencias() )*
+    <FIN_FUNCION> <VARIABLE>
+}
+
 void programa(): { }{
 
     try {
-        <INICIO> ( sentencias() )+ <FIN><EOF>
+        // Nuevo
+        ( declaracionFuncion() )+
+        <EOF>
+
+        // Eliminado
+        // <INICIO> ( sentencias() )+ <FIN><EOF>
     } catch (ParseException ex){
 
         processError(ex, "programa principal");
 
-        skipTo(FIN);
+        skipTo(FIN_FUNCION);
     }
 }
 
-void sentencias():{}{
+void sentencias():{ }{
 
     sentenciaAsignacion() |
-    sentenciaDeclaracionVariables() |
+    // Nuevo
+    sentenciaDeclaracion() |
+    // Eliminado
+    // sentenciaDeclaracionVariables() |
     leerDato() |
     imprimirDato() |
     sentenciaSi() |
@@ -370,7 +425,7 @@ void sentencias():{}{
 
 }
 
-void sentenciaAsignacion():{}{
+void sentenciaAsignacion():{ }{
 
     try {
         <VARIABLE> asignacion() <DELIMITADOR>
@@ -382,10 +437,24 @@ void sentenciaAsignacion():{}{
 
     }
 
-
 }
 
-void sentenciaDeclaracionVariables():{}{
+// Nuevo
+void sentenciaDeclaracion() : { }{
+
+    try {
+        ( declaracionVariables() | declaracionArreglo() ) <DELIMITADOR>
+    } catch (ParseException ex) {
+
+        processError(ex, "sentencia de declaración");
+
+        skipTo(DELIMITADOR, SENTENCES_BEGIN);
+
+    }
+}
+
+// Eliminar
+void sentenciaDeclaracionVariables():{ }{
 
     try {
         declaracionVariables() <DELIMITADOR>
@@ -407,40 +476,99 @@ void constantes():{ }{
     <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
 }
 
-void asignacion():{}{
-    <ASIGNACION>  condicion()
+// Editado
+void asignacion():{ }{
+    <ASIGNACION>  expresion()
 }
 
-void operacion():{ }{
-    ( <LOGICO_NOT> )* ( <VARIABLE> | constantes() | operacionParentesis() )
-    (operadores() ( <LOGICO_NOT> )* (<VARIABLE> | constantes() | operacionParentesis() ))*
+// Nuevo
+void expresion(): { }{
+    logicoOr()
 }
 
+// Nuevo
+void logicoOr() : { }{
+    logicoAnd() ( <LOGICO_OR> logicoAnd() )*
+}
+
+// Nuevo
+void logicoAnd() : { }{
+    comparacion() ( <LOGICO_AND> comparacion() )*
+}
+
+// Nuevo
+void comparacion() : { }{
+    operando() ( <OPERADOR_IGUAL> operando()
+               | <OPERADOR_DIFERENTE> operando()
+               | <OPERADOR_MAYOR> operando()
+               | <OPERADOR_MENOR> operando()
+               | <OPERADOR_MAYOR_IGUAL> operando()
+               | <OPERADOR_MENOR_IGUAL> operando() )?
+}
+
+// Nuevo
+void operando() : { }{
+    termino() ( ( <SUMA> | <RESTA> ) termino() )*
+}
+
+// Nuevo
+void termino(): { }{
+    factor() ( ( <MULTIPLICACION> | <DIVISION> | <MODULO> ) factor() )*
+}
+
+// Nuevo
+void factor() : { }{
+    <VARIABLE> |
+    constantes() |
+    <PAREN_ABIERTO> expresion() <PAREN_CERRADO> |
+    <LOGICO_NOT> factor()
+}
+
+// Eliminado
 void operacionParentesis():{}{
-    <PAREN_ABIERTO> operacion() <PAREN_CERRADO>
+    ""
 }
 
+// Eliminado
 void operadores():{}{
     operadoresAritmeticos() | operadoresLogicos() | operadoresRelacionales()
 }
 
-void operadoresAritmeticos():{}{
+// Eliminado
+void operacion():{} {
+    ""
+}
+
+// Eliminado
+void condicion():{} {
+    ""
+}
+
+// Eliminado
+void operadoresAritmeticos():{ }{
     <SUMA> | <RESTA> | <MULTIPLICACION> | <DIVISION> | <MODULO>
 }
 
-void operadoresRelacionales():{}{
+// Eliminado
+void operadoresRelacionales():{ }{
     <OPERADOR_IGUAL> | <OPERADOR_DIFERENTE> | <OPERADOR_MAYOR> | <OPERADOR_MAYOR_IGUAL> | <OPERADOR_MENOR> | <OPERADOR_MENOR_IGUAL>
 }
 
-void operadoresLogicos():{}{
+// Eliminado
+void operadoresLogicos():{ }{
     <LOGICO_AND> | <LOGICO_OR>
 }
 
-void declaracionVariables():{}{
+// Nuevo
+void declaracionArreglo():{ }{
+    <ESTABLECER> tiposDato() <INDICE_ABIERTO> expresion() <INDICE_CERRADO> <VARIABLE>
+}
+
+void declaracionVariables():{ }{
     <ESTABLECER> tiposDato() <VARIABLE> ( asignacion() )?
 }
 
-void leerDato():{}{
+void leerDato():{ }{
 
     try {
         <INTERPRETAR> <VARIABLE> <DELIMITADOR>
@@ -467,11 +595,12 @@ void imprimirDato():{}{
 
 }
 
+// Editado
 void sentenciaSi():{}{
 
     try {
-        <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> ( sentencias() )+
-        ( <CONDICIONAL_SINO> ( sentencias() )+ )?
+        <INICIO_CONDICIONAL_SI> expresion() <ENTONCES> ( sentencias() )*
+        ( <CONDICIONAL_SINO> ( sentencias() )* )?
         <FIN_CONDICIONAL_SI>
     } catch (ParseException ex) {
 
@@ -483,17 +612,12 @@ void sentenciaSi():{}{
 
 }
 
-void condicion():{} {
-    operacion()
-    ( operadoresRelacionales() operacion() )*
-}
-
 void sentenciaConforme():{}{
 
     try {
         <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
-        ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )+
-        ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )?
+        ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )* )+
+        ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )* )?
         <FIN_CONFORME>
     } catch (ParseException ex) {
 
@@ -505,12 +629,13 @@ void sentenciaConforme():{}{
 
 }
 
+// Editado
 void sentenciaPara():{}{
 
     try {
         <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
-        <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
-        ( sentencias() )+
+        <CONDICION_CICLO_PARA> expresion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
+        ( sentencias() )*
         <FIN_CICLO_PARA>
     } catch (ParseException ex) {
 
@@ -523,11 +648,12 @@ void sentenciaPara():{}{
 
 }
 
+// Editado
 void sentenciaRepetir():{}{
 
     try {
-        <INICIO_CICLO_REPETIR> ( sentencias() )+
-        <CONDICION_CICLO_REPETIR> condicion() <DELIMITADOR>
+        <INICIO_CICLO_REPETIR> ( sentencias() )*
+        <CONDICION_CICLO_REPETIR> expresion() <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de bucle Repetir");
@@ -538,11 +664,12 @@ void sentenciaRepetir():{}{
 
 }
 
+// Editado
 void sentenciaMientras():{}{
 
     try {
-        <INICIO_CICLO_MIENTRAS> condicion() <HACER>
-        ( sentencias() )+
+        <INICIO_CICLO_MIENTRAS> expresion() <HACER>
+        ( sentencias() )*
         <FIN_CICLO_MIENTRAS>
     } catch (ParseException ex) {
 
@@ -554,4 +681,3 @@ void sentenciaMientras():{}{
 
 
 }
-
