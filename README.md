@@ -14,9 +14,6 @@ $ javacc EC.jj
 $ javac *.java
 ```
 
-## Para ver ver una ayuda sobre el compilador
-- Abrir una **terminal**.
-- Ejecutar el siguiente comando:
 ```console
-$ java EC -h
+$ java EC <codigo_fuente>
 ```
