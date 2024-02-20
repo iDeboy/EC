@@ -1,4 +1,4 @@
-Funcion Main()
+Funcion Principal()
 
     Establecer Entero numero1 = 5;
 
@@ -48,4 +48,4 @@ Funcion Main()
 
     Establecer Booleano menorIgual = numero1 <= numero2;
 
-FinFuncion Main
+FinFuncion Principal

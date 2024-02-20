@@ -1,4 +1,4 @@
-Funcion Main()
+Funcion Principal()
 
     Escribir "Programa que imprime el mayor de 3 numeros";
 
@@ -46,4 +46,4 @@ Funcion Main()
         Escribir "El tercero numero es el mayor";
     FinSi
 
-FinFuncion Main
+FinFuncion Principal

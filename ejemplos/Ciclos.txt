@@ -1,4 +1,4 @@
-Funcion Main()
+Funcion Principal()
 
     Establecer Entero i;
 
@@ -20,4 +20,4 @@ Funcion Main()
         # Codigo
     Finaliza cuando numero <= 0;
 
-FinFuncion Main
+FinFuncion Principal

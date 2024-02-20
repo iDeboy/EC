@@ -1,4 +1,4 @@
-Funcion Main()
+Funcion Principal()
 
     Establecer Entero numero1 = 10;
 
@@ -24,4 +24,4 @@ Funcion Main()
             Escribir "El numero no esta en el rango";
     FinConforme
 
-FinFuncion Main
+FinFuncion Principal

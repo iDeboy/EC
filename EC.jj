@@ -214,6 +214,8 @@ TOKEN : {
     <FUNCION: "Funcion" >
     |
     <FIN_FUNCION: "FinFuncion">
+    |
+    <RETORNAR: "Retornar">
 }
 
 // Tipos de dato
@@ -388,6 +390,7 @@ void argumentos() : { } {
 void declaracionFuncion() : { }{
     <FUNCION> ( tiposDato() )? <VARIABLE> <PAREN_ABIERTO> argumentos() <PAREN_CERRADO>
     ( sentencias() )*
+    ( <RETORNAR> expresion() <DELIMITADOR> )?
     <FIN_FUNCION> <VARIABLE>
 }
 
@@ -518,7 +521,7 @@ void termino(): { }{
 
 // Nuevo
 void factor() : { }{
-    <VARIABLE> |
+    <VARIABLE> ( indiceArreglo() )? |
     constantes() |
     <PAREN_ABIERTO> expresion() <PAREN_CERRADO> |
     <LOGICO_NOT> factor()
@@ -559,9 +562,13 @@ void operadoresLogicos():{ }{
     <LOGICO_AND> | <LOGICO_OR>
 }
 
+void indiceArreglo() : { }{
+    ( <INDICE_ABIERTO> expresion() <INDICE_CERRADO> )+
+}
+
 // Nuevo
 void declaracion():{ }{
-    <ESTABLECER> tiposDato() ( <INDICE_ABIERTO> expresion() <INDICE_CERRADO> )? <VARIABLE>
+    <ESTABLECER> tiposDato() ( indiceArreglo() )? <VARIABLE>
     ( asignacion() )?
 }
 
