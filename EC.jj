@@ -476,8 +476,6 @@ public class EC {
                     msg.append(" (").append(tokenImage[tokenError.kind]).append(')').append('.');
             }
 
-
-
         } else {
             msg.append("\n\tSe encontraron los símbolos:");
             for (Token token : tokens) {
@@ -490,8 +488,6 @@ public class EC {
                     if(!tokenImage[token.kind].regionMatches(1, token.image,0,token.image.length()))
                         msg.append(" (").append(tokenImage[token.kind]).append(')').append('.');
                 }
-
-
 
             }
         }
