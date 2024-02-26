@@ -2,7 +2,7 @@ Inicio
 
     Establecer Entero edad;
 
-    Escribir "Ingresa tu edad: "
+    Escribir "Ingresa tu edad: ";
     Interpretar edad;
 
     Escribir "Ingresaste: ";
