@@ -1500,7 +1500,7 @@ void sentenciaPara(Ambito ambito) :
 } {
 
     try {
-        <INICIO_CICLO_PARA> ( ( <VARIABLE> asignacion(ambito) ) | declaracion(ambitoPara) )
+        <INICIO_CICLO_PARA> ( <VARIABLE> asignacion(ambito) | declaracion(ambitoPara) )
         <CONDICION_CICLO_PARA> expresion(ambitoPara) <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
         ( sentencias(ambitoPara) )*
         <FIN_CICLO_PARA>
