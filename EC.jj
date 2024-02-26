@@ -46,6 +46,29 @@ public class EC {
         }
     }
 
+    public class Tupla<A, B> {
+        private final A primero;
+        private final B segundo;
+
+        public Tupla(A primero, B segundo) {
+            this.primero = primero;
+            this.segundo = segundo;
+        }
+
+        public A getPrimero() {
+            return primero;
+        }
+
+        public B getSegundo() {
+            return segundo;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + primero + ", " + segundo + ")";
+        }
+    }
+
     public class Expresion {
 
         public String nombre;
@@ -399,8 +422,6 @@ public class EC {
                                .mapToInt(intMapper)
                                .max()
                                .orElse(0);
-
-        System.out.println("Tamaño: " + maxLength);
 
         // Top border
         System.out.print("╔");
@@ -921,6 +942,7 @@ void programa():
 
 void sentencias(Ambito ambito):{ }{
 
+    
     sentenciaDeclaracion(ambito) |
     sentenciaAsignacion(ambito) |
     leerDato(ambito) |
@@ -933,10 +955,15 @@ void sentencias(Ambito ambito):{ }{
 
 }
 
-void sentenciaAsignacion(Ambito ambito) : { } {
+void sentenciaAsignacion(Ambito ambito) :
+{
+    Tupla<Integer, Token> tupla;
+} {
 
     try {
-        <VARIABLE> asignacion(ambito) <DELIMITADOR>
+        tupla = llamadas(ambito)
+        ( asignacion(ambito, tupla) )?
+        <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de asignacion");
@@ -987,38 +1014,44 @@ int constantes(): { }{
     <BOOLEANO_VERDADERO> { return TIPO_BOOLEANO; }
 }
 
-void asignacion(Ambito ambito):
+void asignacion(Ambito ambito, Tupla<Integer, Token> t):
 {
-    boolean error = false;
-    if (!ambito.tablaSimbolos.containsKey(token.image)){
+    boolean error = t == null;
+    Token tk = t.getSegundo();
+    if (!error && !ambito.tablaSimbolos.containsKey(tk.image)) {
 
-        tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                        + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito." +
+        tablaErrores.add("Error semántico, Línea " + tk.beginLine + ", columna " + tk.beginColumn
+                        + ".\n\tEl símbolo \"" + tk.image + "\" no está declarado en este ámbito." +
                          "\n\tDeclarar el símbolo.");
 
         error = true;
     }
 
-    Expresion exp = ambito.tablaSimbolos.get(token.image);
+    Expresion exp = ambito.tablaSimbolos.get(tk.image);
 
     if(!error && !exp.tieneErrores() && exp.tipoExpresion == EXP_FUNCION) {
 
-        tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                        + ".\n\tEl símbolo no es una variable." +
+        tablaErrores.add("Error semántico, Línea " + tk.beginLine + ", columna " + tk.beginColumn
+                        + ".\n\t\""+ exp.nombre +"\" no es un símbolo asignable." +
                           "\n\tNo se le puede asignar un valor a una llamada de función.");
 
         error = true;
     }
 
     int tipoDato;
-}{
+} {
     <ASIGNACION> tipoDato = expresion(ambito)
     {
         if(tipoDato == 0) {
             error = true;
         }
 
-        if(!error && !exp.tieneErrores() && exp.tipoDato != tipoDato){
+        int expTipoDato = t.getPrimero();
+        if(expTipoDato == -2){
+            expTipoDato = exp.tipoDato;
+        }
+
+        if(!error && !exp.tieneErrores() && expTipoDato != tipoDato){
             Token token = exp.token;
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                            + ".\n\tNo se puede asignar un tipo de dato \"" + Expresion.getTipoDatoNombre(tipoDato)
@@ -1213,66 +1246,10 @@ int factor(Ambito ambito) :
     Expresion exp = null;
     Token op;
     boolean error = false;
+    Tupla<Integer, Token> tupla;
 } {
 
-    <VARIABLE>
-    {
-        if (!ambito.tablaSimbolos.containsKey(token.image)) {
-
-            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                            + ".\n\tEl símbolo \"" + token.image + "\" no está definido en este ámbito.");
-
-            error = true;
-        }
-
-        if (!error) {
-            exp = ambito.tablaSimbolos.get(token.image);
-        }
-
-
-    }
-    (
-        indiceArreglo(ambito)
-        {
-            if (!error && exp.tieneErrores() && exp.tipoExpresion != EXP_ARREGLO) {
-
-                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
-                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es un arreglo.");
-
-                error = true;
-            }
-
-        }
-        |
-        {
-            ArrayList<Integer> args = new ArrayList<Integer>();
-        }
-        <PAREN_ABIERTO> ( args = argumentos(ambito) )? <PAREN_CERRADO>
-        {
-            if (!error && exp.tipoExpresion != EXP_FUNCION) {
-
-                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
-                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es una función.");
-
-                error = true;
-            }
-
-            List<Integer> tipoArgumentos = exp.expresiones.stream()
-                                                          .map(Expresion.mapper)
-                                                          .toList();
-
-            if(!args.equals(tipoArgumentos)){
-
-                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
-                               + ".\n\tLos argumentos proporcionados no coinciden con los de la función.");
-
-                error = true;
-
-            }
-
-
-        }
-    )? { return error ? 0 : exp.tipoDato; }
+    tupla = llamadas(ambito) { return tupla.getPrimero(); }
     |
     tipoDato = constantes() { return tipoDato; }
     |
@@ -1306,6 +1283,81 @@ int factor(Ambito ambito) :
         return tipoDato;
     }
 
+}
+
+Tupla<Integer, Token> llamadas(Ambito ambito) :
+{
+    Expresion exp = null;
+    boolean error = false;
+} {
+    <VARIABLE>
+    {
+
+        if (!ambito.tablaSimbolos.containsKey(token.image)) {
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                            + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito." +
+                             "\n\tDeclarar el símbolo.");
+            error = true;
+        }
+
+        if (!error) {
+            exp = ambito.tablaSimbolos.get(token.image);
+        }
+
+
+    }
+    (
+        indiceArreglo(ambito)
+        {
+            if (!error && exp.tieneErrores() && exp.tipoExpresion != EXP_ARREGLO) {
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es un arreglo.");
+
+                error = true;
+            }
+
+            Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : (exp.tipoDato >> 1) << 1, exp.token);
+
+            return resultado;
+        }
+        |
+        {
+            ArrayList<Integer> args = new ArrayList<Integer>();
+        }
+        <PAREN_ABIERTO> ( args = argumentos(ambito) )? <PAREN_CERRADO>
+        {
+            if (!error && exp.tipoExpresion != EXP_FUNCION) {
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es una función.");
+
+                error = true;
+            }
+
+            List<Integer> tipoArgumentos = exp.expresiones
+                                              .stream()
+                                              .map(Expresion.mapper)
+                                              .toList();
+
+            if(!args.equals(tipoArgumentos)){
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tLos argumentos proporcionados no coinciden con los de la función.");
+
+                error = true;
+
+            }
+
+
+        }
+    )?
+    {
+        Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : exp.tipoDato, exp.token);
+
+        return resultado;
+    }
 }
 
 void indiceArreglo(Ambito ambito) :
@@ -1361,7 +1413,7 @@ void declaracion(Ambito ambito) : {
         }
 
     }
-    ( asignacion(ambito) )?
+    ( asignacion(ambito, new Tupla<Integer, Token>(-2, declaracion.token) ) )?
 
 }
 
@@ -1511,7 +1563,7 @@ void sentenciaPara(Ambito ambito) :
 } {
 
     try {
-        <INICIO_CICLO_PARA> ( <VARIABLE> asignacion(ambito) | declaracion(ambitoPara) )
+        <INICIO_CICLO_PARA> ( <VARIABLE> asignacion(ambito, new Tupla<Integer, Token>(-2, token) ) | declaracion(ambitoPara) )
         <CONDICION_CICLO_PARA> expresion(ambitoPara) <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
         ( sentencias(ambitoPara) )*
         <FIN_CICLO_PARA>

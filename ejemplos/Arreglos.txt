@@ -1,0 +1,16 @@
+
+Inicio
+
+    Establecer Entero [3] A;
+
+    A[0] = 1;
+    A[1] = 2;
+    A[2] = 3;
+
+    Establecer Entero f = A[0];
+    Establecer Entero c = A[1];
+
+    Establecer Entero [f][c] B;
+
+
+Fin
