@@ -621,10 +621,8 @@ TOKEN : {
     |
     <PAREN_CERRADO: ")">
     |
-    // Nuevo
     <INDICE_ABIERTO: "[">
     |
-    // Nuevo
     <INDICE_CERRADO: "]">
 }
 
