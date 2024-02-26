@@ -22,9 +22,9 @@ Inicio
 
 
 
-    logico1 = falso;
+    logico1 = Falso;
 
-    logico2 = verdadero;
+    logico2 = Verdadero;
 
 
 
