@@ -466,21 +466,33 @@ public class EC {
         .append(" linea ").append(tokenError.endLine).append(", columna ").append(tokenError.endColumn).append('.');
 
         if (tokens.size() == 1) {
-            msg.append("\n\tSe encontró el símbolo \"").append(tokenError.image).append('\"');
 
-            if(!tokenImage[tokenError.kind].regionMatches(1, tokenError.image,0,tokenError.image.length()))
-                msg.append(" (").append(tokenImage[tokenError.kind]).append(')');
+            if(token.kind == ECConstants.CADENA_TEXTO){
+                msg.append(String.format("\n\tSe encontró el símbolo %s.", tokenImage[token.kind]));
+            } else {
+                msg.append(String.format("\n\tSe encontró el símbolo \"%s\".", token.image));
 
-            msg.append('.');
+                if(!tokenImage[tokenError.kind].regionMatches(1, tokenError.image,0,tokenError.image.length()))
+                    msg.append(" (").append(tokenImage[tokenError.kind]).append(')').append('.');
+            }
+
+
+
         } else {
             msg.append("\n\tSe encontraron los símbolos:");
             for (Token token : tokens) {
-                msg.append("\n\t\t - \"").append(token.image).append('\"');
 
-                if(!tokenImage[token.kind].regionMatches(1, token.image,0,token.image.length()))
-                    msg.append(" (").append(tokenImage[token.kind]).append(')');
+                if(token.kind == ECConstants.CADENA_TEXTO){
+                    msg.append(String.format("\n\t\t - %s.", tokenImage[token.kind]));
+                } else {
+                    msg.append(String.format("\n\t\t - \"%s\".", token.image));
 
-                msg.append('.');
+                    if(!tokenImage[token.kind].regionMatches(1, token.image,0,token.image.length()))
+                        msg.append(" (").append(tokenImage[token.kind]).append(')').append('.');
+                }
+
+
+
             }
         }
 
@@ -841,7 +853,6 @@ void declaracionFuncion(Ambito ambito) :
 
     }
      <PAREN_ABIERTO> ( funcion.expresiones = declaracionArgumentos(ambitoFuncion) )? <PAREN_CERRADO>
-
     ( sentencias(ambitoFuncion) )*
     (
         <RETORNAR>
@@ -852,7 +863,8 @@ void declaracionFuncion(Ambito ambito) :
             if (!funcion.tieneErrores() && funcion.tipoDato == TIPO_VACIO) {
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar ningun valor.");
+                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar ningun valor."
+                               + "\n\tQuitar retornar.");
 
                 funcion.isError = true;
 
@@ -862,7 +874,8 @@ void declaracionFuncion(Ambito ambito) :
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                                + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar un tipo de dato \""
-                               +  Expresion.getTipoDatoNombre(tipoDato) + "\".");
+                               +  Expresion.getTipoDatoNombre(tipoDato) + "\"."
+                               + "\n\tRetornar tipo de dato \"" + Expresion.getTipoDatoNombre(funcion.tipoDato) + "\"." );
 
                 funcion.isError = true;
 
@@ -875,7 +888,8 @@ void declaracionFuncion(Ambito ambito) :
         if(!funcion.nombre.equals(token.image)){
 
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                           + ".\n\tLa función debe de terminar con el mismo nombre.");
+                           + ".\n\tLa función debe de terminar con el mismo nombre."
+                           + "\n\tColocar el nombre de la función después del FinFuncion.");
 
             if (!funcion.tieneErrores()) {
                 ambito.tablaSimbolos.remove(funcion.nombre);
@@ -984,7 +998,7 @@ void asignacion(Ambito ambito):
 
         tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                         + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito." +
-                         "\n\tDeclare una variable para asignarle un valor.");
+                         "\n\tDeclarar el símbolo.");
 
         error = true;
     }
@@ -1012,7 +1026,8 @@ void asignacion(Ambito ambito):
             Token token = exp.token;
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                            + ".\n\tNo se puede asignar un tipo de dato \"" + Expresion.getTipoDatoNombre(tipoDato)
-                           +  "\" a un tipos de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\".");
+                           + "\" a un tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\"."
+                           + "\n\tSe esperaba tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\".");
 
         }
 
