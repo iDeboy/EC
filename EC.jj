@@ -31,6 +31,8 @@ public class EC {
 
     final ArrayList<String> tablaErrores = new ArrayList<String>();
 
+    final StringBuilder codigoIntermedio = new StringBuilder();
+
     public class Ambito {
 
         public final HashMap<String, Expresion> tablaSimbolos;
@@ -457,6 +459,7 @@ public class EC {
 
         // Tokens esperados
         StringBuilder expected = new StringBuilder();
+
         int maxSize = 0;
 
         for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
@@ -567,7 +570,6 @@ PARSER_END(EC)
 TOKEN_MGR_DECLS:{
     EC compilador;
 }
-
 // Inicio y fin del programa
 TOKEN : {
 
@@ -942,7 +944,6 @@ void programa():
 
 void sentencias(Ambito ambito):{ }{
 
-    
     sentenciaDeclaracion(ambito) |
     sentenciaAsignacion(ambito) |
     leerDato(ambito) |
@@ -1001,13 +1002,13 @@ int tiposDato() : { } {
 
 int constantes(): { }{
 
-    <NUMERO_ENTERO> { return TIPO_ENTERO; }
+    <NUMERO_ENTERO> { return TIPO_ENTERO; } // 2
     |
-    <NUMERO_DECIMAL> { return TIPO_FLOTANTE; }
+    <NUMERO_DECIMAL> { return TIPO_FLOTANTE; } // 2.3 0.0
     |
-    <CADENA_TEXTO> { return TIPO_CADENA; }
+    <CADENA_TEXTO> { return TIPO_CADENA; } // "Hola"
     |
-    <CARACTER_TEXTO> { return TIPO_CARACTER; }
+    <CARACTER_TEXTO> { return TIPO_CARACTER; } // 'c'
     |
     <BOOLEANO_FALSO> { return TIPO_BOOLEANO; }
     |
@@ -1354,7 +1355,7 @@ Tupla<Integer, Token> llamadas(Ambito ambito) :
         }
     )?
     {
-        Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : exp.tipoDato, exp.token);
+        Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : exp.tipoDato, error ? null : exp.token);
 
         return resultado;
     }
@@ -1380,7 +1381,8 @@ void indiceArreglo(Ambito ambito) :
     )+
 }
 
-void declaracion(Ambito ambito) : {
+void declaracion(Ambito ambito)
+: {
 
     Expresion declaracion = new Expresion();
 
