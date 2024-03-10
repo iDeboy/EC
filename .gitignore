@@ -2,6 +2,7 @@
 compilador
 out
 *.java
+intermedio.txt
 
 .idea
 

@@ -184,6 +184,8 @@ public class EC {
 
         public List<String> lineas = new ArrayList<String>();
 
+        public String codigoIntermedio = "";
+
     }
 
     private static final Function<String, String> formaLista = new Function<String, String>() {
@@ -337,6 +339,8 @@ public class EC {
 
             var errores = ec.tablaErrores;
 
+            reporte.codigoIntermedio = ec.codigoIntermedio.toString();
+
             reporte.lineas.add("Se pasó la prueba semántica con éxito.");
             reporte.lineas.add("No se encontraron errores.");
 
@@ -444,8 +448,20 @@ public class EC {
         }
         System.out.println("╝");
 
-        System.exit(reporte.isError ? -1 : 0);
+        if (reporte.isError) {
+            System.exit(-1);
+        }
 
+        try  {
+            FileOutputStream fos = new FileOutputStream("intermedio.txt", false);
+            fos.write(reporte.codigoIntermedio.getBytes());
+            System.out.println("Codigo intermedio creado.");
+            fos.close();
+        } catch (Exception ex) {
+            System.out.println("ERROR: No se pudo generar el codigo intermedio.");
+        }
+
+        System.exit(0);
     }
 
     public EC(FileReader fileReader) {
@@ -1189,7 +1205,10 @@ int operando(Ambito ambito) :
         if(tipoIzq == 0) error = true;
 
     }
-    ( ( <RESTA> | <SUMA> ) { op = token; }
+    ( ( <RESTA> | <SUMA> )
+    {
+        op = token;
+    }
         tipoDer = termino(ambito)
         {
 
@@ -1252,7 +1271,10 @@ int factor(Ambito ambito) :
 
     tupla = llamadas(ambito) { return tupla.getPrimero(); }
     |
-    tipoDato = constantes() { return tipoDato; }
+    tipoDato = constantes()
+    {
+        return tipoDato;
+    }
     |
     <PAREN_ABIERTO> tipoDato = expresion(ambito) <PAREN_CERRADO> { return tipoDato; }
     |
