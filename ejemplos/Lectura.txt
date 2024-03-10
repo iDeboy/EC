@@ -1,7 +1,11 @@
 Inicio
 
-    Establecer Entero i;
+    Establecer Entero edad;
 
+    Escribir "Ingresa tu edad: ";
     Interpretar edad;
+
+    Escribir "Ingresaste: ";
+    Escribir edad;
 
 Fin

@@ -1,422 +1,660 @@
 
 options {
     STATIC = false;
-    // BUILD_PARSER = false;
-    //OUTPUT_DIRECTORY = "compilador";
 }
 
 PARSER_BEGIN(EC)
 
-    //package compilador;
+import java.io.*;
+import java.util.*;
+import java.util.function.*;
+import java.util.stream.Collectors;
+import java.util.stream.*;
+import java.lang.reflect.*;
 
-    import java.io.*;
-    import java.util.*;
+public class EC {
 
-    public class EC {
+    final static int EXP_VARIABLE = 1;
+    final static int EXP_ARREGLO = 2;
+    final static int EXP_FUNCION = 3;
 
-        private static final String VERSION = "0.2.5";
-        private static final String NAME = EC.class.getSimpleName();
-        private static final String PROGRAM = "." + File.separatorChar + NAME;
-        private static int index = 0;
-        private static String command = "";
-        private static String source_file = "";
+    final static int TIPO_VACIO = -1;
+    final static int TIPO_ENTERO = ECConstants.ENTERO << 1;
+    final static int TIPO_FLOTANTE = ECConstants.FLOTANTE << 1;
+    final static int TIPO_CADENA = ECConstants.CADENA << 1;
+    final static int TIPO_CARACTER = ECConstants.CARACTER << 1;
+    final static int TIPO_BOOLEANO = ECConstants.BOOLEANO << 1;
 
-        private final Integer[] SENTENCES_BEGIN = new Integer[]
-        {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
-        INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
+    final Integer[] SENTENCES_BEGIN = new Integer[]
+            {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
+            INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
 
-        // Lista de errores
-        private static final ArrayList<String> errores = new ArrayList<String>();
+    final ArrayList<String> tablaErrores = new ArrayList<String>();
 
-        private static void unimplemented(){
-            System.out.println("ERROR: El comando '" + command + "' todavia no esta implementado.");
-            System.out.println();
-            System.exit(-1);
+    final StringBuilder codigoIntermedio = new StringBuilder();
+
+    public class Ambito {
+
+        public final HashMap<String, Expresion> tablaSimbolos;
+
+        public Ambito(){
+            tablaSimbolos = new HashMap<String, Expresion>();
         }
 
-        private static void usage(){
+        public Ambito(Ambito from){
+            this();
 
-            System.out.println("USO: " + PROGRAM + " <Comando>");
-            System.out.println(" Compila o revisa la estructura de un código fuente escrito en el lenguaje ELL.");
-            System.out.println(" El <Comando> por defecto es '-c'.");
-            System.out.println("  <Comando>:");
-            System.out.println("    -c <codigo_fuente.txt>");
-            System.out.println("      Compila el código fuente.");
-            System.out.println("    -l <codigo_fuente.txt>");
-            System.out.println("      Revisa la léxica del código fuente.");
-            System.out.println("    -sin <codigo_fuente.txt>");
-            System.out.println("      Revisa la sintaxis del código fuente.");
-            System.out.println("    -h o -u");
-            System.out.println("      Muestra este mensaje de ayuda.");
-            System.out.println("    -v");
-            System.out.println("      Muestra la versión del compilador.");
-            System.out.println();
-        }
-
-        private static void checkTooManyArguments(String[] args){
-            if(args.length > index){
-                usage();
-                System.err.println("ERROR: Hay más de un comando.");
-                System.out.println();
-                System.exit(-1);
-            }
-        }
-
-        private static void setSourceFile(String[] args){
-
-            if(source_file.isEmpty()){
-
-                if(args.length < index + 1){
-                    usage();
-                    System.err.println("ERROR: Debe de ingresar el archivo del código fuente.");
-                    System.out.println();
-                    System.exit(-1);
-                }
-
-                source_file = args[index++];
-                // index = 2
-            }
-
-            checkTooManyArguments(args);
-
-            ensureSourceExists();
-
-        }
-
-        private static void ensureSourceExists(){
-            File file = new File(source_file);
-            if(!file.exists()){
-                usage();
-                System.err.println("ERROR: El archivo " + source_file + " no existe.");
-                System.out.println();
-                System.exit(-1);
-            }
-
-        }
-
-        private static boolean checkLex(boolean debug){
-
-            try {
-
-                FileReader sourceFileReader = new FileReader(source_file);
-
-                // Instanciar objeto de TokenManager y obtener todos los tokens. Ej:
-                ECTokenManager lexico = new ECTokenManager(new SimpleCharStream(sourceFileReader));
-
-                Token t = lexico.getNextToken();
-                while(t.kind != ECTokenManager.EOF) {
-                    try {
-
-                        if (t.kind == ECTokenManager.INVALIDO)
-                            throw new TokenMgrError("Error léxico en línea " +
-                                    t.beginLine + ", columna " + t.beginColumn +
-                                    ". Se encontró símbolo inválido '" + t.image + "'.\n        " +
-                                    "Posible solución: Remover símbolo.", TokenMgrError.LEXICAL_ERROR);
-
-                        if (t.kind == ECTokenManager.NUMERO_INVALIDO)
-                            throw new TokenMgrError("Error léxico en línea " +
-                                    t.beginLine + ", columna " + t.beginColumn +
-                                    ". Se encontró un número inválido '" + t.image + "'.\n        " +
-                                    "Posible solución: Remover o revisar número.", TokenMgrError.LEXICAL_ERROR);
-
-                        if(debug)
-                            System.out.println(t.image);
-
-                    } catch (TokenMgrError ex) {
-                        errores.add(ex.getMessage());
-                    } finally {
-                        t = lexico.getNextToken();
-
-                    }
-                }
-
-            } catch (FileNotFoundException ex) {
-                System.err.println("Ha ocurrido un problema con el archivo leído.");
-                System.exit(-1);
-            }
-
-            return errores.isEmpty();
-
-        }
-
-        private static boolean checkSyntax() {
-
-            if (!checkLex(false)) return false;
-
-            try {
-                FileReader sourceFileReader = new FileReader(source_file);
-
-                EC sintactico = new EC(sourceFileReader);
-
-                sintactico.programa();
-
-            } catch (FileNotFoundException ex) {
-                System.err.println("Ha ocurrido un problema con el archivo leído.");
-                System.exit(-1);
-            } catch (ParseException ex) {
-                processError(ex, "programa principal");
-            }
-
-            return errores.isEmpty();
-        }
-
-        public static void main(String[] args) {
-
-            if (args.length == 0) {
-                usage();
-                System.err.println("ERROR: Debe de ingresar el archivo del código fuente o un comando.");
-                System.exit(-1);
-            }
-
-            command = "-c";
-            source_file = "";
-
-            if(args[index].startsWith("-"))
-                command = args[index];
-            else
-                source_file = args[index];
-
-            index++;
-
-            // index = 1
-            switch (command){
-
-                case "-c":
-
-                    setSourceFile(args);
-
-                    // Compilar
-                    unimplemented();
-
-                    break;
-                case "-l":
-
-                    setSourceFile(args);
-
-                    System.out.println("----------------------------------------------");
-                    System.out.println("Fase léxica:");
-
-                    // Revisar fase lexica
-                    if (checkLex(true)){
-                        System.out.println("Se pasó la prueba léxica con éxito.\nNo se encontraron errores.");
-                        System.out.println("----------------------------------------------");
-                        System.exit(0);
-                    }
-
-                    if (errores.size() == 1) {
-                        System.err.println("Se encontró " + errores.size() + " error durante la prueba léxica:");
-                    } else {
-                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba léxica:");
-                    }
-
-                    System.out.println();
-
-                    for (int i = 0; i < errores.size(); i++) {
-                        System.err.println("    " + (i + 1)  + ".- " + errores.get(i));
-                    }
-
-                    System.out.println("----------------------------------------------");
-
-                    System.exit(-1);
-
-                    break;
-                case "-sin":
-
-                    setSourceFile(args);
-
-                    System.out.println("----------------------------------------------");
-                    System.out.println("Fase sintáctica:");
-
-                    // Revisar fase sintectica
-                    if(checkSyntax()){
-                        System.out.println("Se pasó la prueba sintáctica con éxito.\nNo se encontraron errores.");
-                        System.out.println("----------------------------------------------");
-                        System.exit(0);
-                    }
-
-                    if (errores.size() == 1) {
-                        System.err.println("Se encontró " + errores.size() + " error durante la prueba sintáctica:");
-                    } else {
-                        System.err.println("Se encontraron " + errores.size() + " errores durante la prueba sintáctica:");
-                    }
-
-                    System.out.println();
-
-                    for (int i = 0; i < errores.size(); i++) {
-                        System.err.println(errores.get(i));
-                    }
-
-                    System.out.println("----------------------------------------------");
-                    System.exit(-1);
-
-                    break;
-                case "-h":
-                case "-u":
-
-                    checkTooManyArguments(args);
-
-                    usage();
-
-                    break;
-                case "-v":
-
-                    checkTooManyArguments(args);
-
-                    System.out.println(NAME + " " + VERSION);
-
-                    break;
-                default:
-                    usage();
-                    System.out.println("ERROR: Commando '" + command + "' no existe.");
-                    System.exit(-1);
-                    break;
-            }
-
-        }
-
-        private void skipTo(Integer end, Integer... kinds){
-
-            List<Integer> kindsList = Arrays.asList(kinds);
-
-            HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
-            cKinds.add(end);
-            cKinds.add(FIN);
-            cKinds.add(EOF);
-
-            Token oldToken = token;
-            boolean sw = true;
-            int selectedKind = EC.EOF;
-
-            do {
-                token = getNextToken();
-
-                for (Integer kind : cKinds) {
-                    sw &= token.kind != kind;
-
-                    if (!sw) {
-                        selectedKind = kind;
-                        break;
-                    }
-                }
-
-            } while (sw);
-
-            if (selectedKind != end) {
-                token = oldToken;
-                jj_kind = selectedKind;
-            }
-
-        }
-
-        private static void processError(ParseException ex, String from){
-
-            // Tokens esperados
-            StringBuilder expected = new StringBuilder();
-            int maxSize = 0;
-
-            for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
-                if (maxSize < ex.expectedTokenSequences[i].length) {
-                    maxSize = ex.expectedTokenSequences[i].length;
-                }
-                for (int j = 0; j < ex.expectedTokenSequences[i].length; j++) {
-                    expected.append(ex.tokenImage[ex.expectedTokenSequences[i][j]]).append(' ');
-                }
-
-            }
-
-            Token t = ex.currentToken;
-
-            // Tokens encontrados
-            StringBuilder found = new StringBuilder();
-            Token tok = t.next;
-
-            for (int i = 0; i < maxSize; i++) {
-
-                if (i != 0) found.append(" ");
-
-                if (tok.kind == 0) {
-                    found.append(tokenImage[0]);
-                    break;
-                }
-
-                found.append(tokenImage[tok.kind]);
-
-                tok = tok.next;
-            }
-
-            String[] founds = found.toString().split(" ");
-            String[] expecteds = expected.toString().split(" ");
-
-            StringBuilder msg = new StringBuilder();
-            msg.append("Error sintáctico en ").append(from).append('.');
-            msg.append("\nLínea ").append(t.beginLine).append(", Columna ").append(t.beginColumn).append('.');
-
-            if (founds.length == 1) {
-                msg.append("\nSe encontró el símbolo ").append(founds[0]).append('.');
-            } else {
-                msg.append("\nSe encontraron los símbolos:");
-                for (String f : founds) {
-                    msg.append("\n\t - ").append(f);
-                }
-            }
-
-            if (expecteds.length == 1){
-                msg.append("\nSe esperaba ").append(expecteds[0]).append('.');
-            } else {
-                msg.append("\nSe esperaba uno de los siguientes: ");
-                for (String e : expecteds) {
-                    msg.append("\n\t - ").append(e);
-                }
-            }
-
-            errores.add(msg.toString());
+            tablaSimbolos.putAll(from.tablaSimbolos);
         }
     }
-    
+
+    public class Tupla<A, B> {
+        private final A primero;
+        private final B segundo;
+
+        public Tupla(A primero, B segundo) {
+            this.primero = primero;
+            this.segundo = segundo;
+        }
+
+        public A getPrimero() {
+            return primero;
+        }
+
+        public B getSegundo() {
+            return segundo;
+        }
+
+        @Override
+        public String toString() {
+            return "(" + primero + ", " + segundo + ")";
+        }
+    }
+
+    public class Expresion {
+
+        public String nombre;
+
+        public int tipoDato;
+
+        public int tipoExpresion = EXP_VARIABLE;
+
+        public Token token;
+
+        public ArrayList<Expresion> expresiones = new ArrayList<Expresion>();
+
+        public boolean isError = false;
+
+        public static final Function<Expresion, Integer> mapper = new Function<Expresion, Integer>() {
+            @Override
+            public Integer apply(Expresion e){
+                return e.tipoDato;
+            }
+        };
+
+        public static final Predicate<Expresion> errorP = new Predicate<Expresion>() {
+             @Override
+             public boolean test(Expresion e) {
+                 return e.isError;
+             }
+         };
+
+        public boolean tieneErrores() {
+
+            if(isError) return true;
+
+            return expresiones.stream().anyMatch(Expresion.errorP);
+        }
+
+        public static String getTipoDatoNombre(int tipoDato){
+
+            switch (tipoDato){
+
+                case TIPO_VACIO:
+                    return "Vacio";
+                case TIPO_ENTERO:
+                    return "Entero";
+                case TIPO_FLOTANTE:
+                    return "Flotante";
+                case TIPO_CADENA:
+                    return "Cadena";
+                case TIPO_CARACTER:
+                    return "Caracter";
+                case TIPO_BOOLEANO:
+                    return "Booleano";
+
+                case TIPO_ENTERO | 1:
+                    return "Entero[]";
+                case TIPO_FLOTANTE | 1:
+                    return "Flotante[]";
+                case TIPO_CADENA | 1:
+                    return "Cadena[]";
+                case TIPO_CARACTER | 1:
+                    return "Caracter[]";
+                case TIPO_BOOLEANO | 1:
+                    return "Booleano[]";
+
+            }
+
+            return "Indefinido";
+        }
+
+        public static boolean isArreglo(int tipoDato) {
+            return (tipoDato & 1) != 0;
+        }
+
+        public static boolean puedeOperar(int tipoDato, int operador){
+
+            boolean eq = false;
+
+            switch(operador){
+                case ECConstants.SUMA:
+                    return tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE
+                    || tipoDato == TIPO_CADENA || tipoDato == TIPO_CARACTER;
+                case ECConstants.RESTA:
+                case ECConstants.MULTIPLICACION:
+                case ECConstants.DIVISION:
+                case ECConstants.MODULO:
+                    return tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE;
+
+                case ECConstants.LOGICO_NOT:
+                case ECConstants.LOGICO_OR:
+                case ECConstants.LOGICO_AND:
+                    return tipoDato == TIPO_BOOLEANO;
+
+                case ECConstants.OPERADOR_IGUAL:
+                case ECConstants.OPERADOR_DIFERENTE:
+                    eq = tipoDato == TIPO_CADENA || tipoDato == TIPO_BOOLEANO;
+                case ECConstants.OPERADOR_MAYOR:
+                case ECConstants.OPERADOR_MAYOR_IGUAL:
+                case ECConstants.OPERADOR_MENOR:
+                case ECConstants.OPERADOR_MENOR_IGUAL:
+                    return eq || tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE
+                        || tipoDato == TIPO_CARACTER;
+            }
+
+            return false;
+
+        }
+    }
+
+    public static class Reporte {
+
+        public boolean isError = false;
+
+        public List<String> lineas = new ArrayList<String>();
+
+    }
+
+    private static final Function<String, String> formaLista = new Function<String, String>() {
+        @Override
+        public String apply(String s){
+            return "- " + s;
+        }
+    };
+
+    private static final Function<String, String> tabMapper = new Function<String, String>() {
+        @Override
+        public String apply(String s){
+            return s.replace("\t", "    ");
+        }
+    };
+
+    private static final Function<String, Stream<String>> flatMapper = new Function<String, Stream<String>>() {
+        @Override
+        public Stream<String> apply(String s){
+            return Stream.of(s.split("\n"));
+        }
+    };
+
+    private static final ToIntFunction<String> intMapper = new ToIntFunction<String>() {
+        @Override
+        public int applyAsInt(String s){
+            return s.length();
+        }
+    };
+
+    private static final Predicate<Field> fieldFilter = new Predicate<Field>() {
+        @Override
+        public boolean test(Field f){
+            return f.getType() == int.class;
+        }
+    };
+
+    private static final BinaryOperator<String> fieldMarge = new BinaryOperator<String>() {
+        @Override
+        public String apply(String x, String y){
+            return x;
+        }
+    };
+
+    private static final Function<Field, Integer> keyMapper = new Function<Field, Integer>() {
+        @Override
+        public Integer apply(Field f) {
+            try{
+                return f.getInt(null);
+            } catch (IllegalAccessException ex) {
+                return 0;
+            }
+
+        }
+    };
+
+    private static final Function<Field, String> valueMapper = new Function<Field, String>() {
+        @Override
+        public String apply(Field f){
+            return f.getName();
+        }
+    };
+
+    private static final Map<Integer, String> tiposTokens
+    = Arrays.stream(ECConstants.class.getDeclaredFields())
+                                  .filter(fieldFilter)
+                                  .collect(Collectors.toMap(keyMapper, valueMapper, fieldMarge));
+
+    public static Reporte lexica(String archivo) {
+        Reporte reporte = new Reporte();
+
+        if (archivo.isBlank()) {
+            reporte.lineas.add("ERROR: Debe de ingresar el archivo del código fuente.");
+            reporte.isError = true;
+            return reporte;
+        }
+
+        try {
+
+            FileReader sourceFileReader = new FileReader(archivo);
+
+            EC ec = new EC(sourceFileReader);
+
+            reporte.lineas.add("Fase léxica: Tipo -> Valor.");
+
+            for(Token token = ec.getNextToken(); token.kind != ECConstants.EOF; token = ec.getNextToken()) {
+
+                String tipo = tiposTokens.get(token.kind);
+                reporte.lineas.add(String.format("\t<%s> -> %s", tipo, token.image));
+
+            }
+
+            var errores = ec.tablaErrores;
+
+            if (!errores.isEmpty()){
+
+                reporte.isError = true;
+                reporte.lineas.clear();
+                String str1 = "encontraron";
+                String str2 = "errores";
+                int cErrores = errores.size();
+
+                if (cErrores == 1) {
+                    str1 = "encontró";
+                    str2 = "error";
+                }
+
+                reporte.lineas.add(String.format("Se %s %d %s durante la prueba léxica:", str1, cErrores, str2));
+                reporte.lineas.add(" ");
+
+                var errors = errores.stream()
+                                  .map(formaLista)
+                                  .flatMap(flatMapper)
+                                  .map(tabMapper)
+                                  .toList();
+
+                reporte.lineas.addAll(errors);
+
+            }else{
+                reporte.lineas.add("Se pasó la prueba léxica con éxito.");
+                reporte.lineas.add("No se encontraron errores.");
+            }
+
+            return reporte;
+
+        } catch (FileNotFoundException ex) {
+            reporte.lineas.add("ERROR: No se encontró el archivo.");
+            reporte.isError = true;
+        }
+
+        return reporte;
+    }
+
+    public static Reporte semantica(String archivo) {
+
+        Reporte reporte = new Reporte();
+
+        if (archivo.isBlank()) {
+            reporte.lineas.add("ERROR: Debe de ingresar el archivo del código fuente.");
+            reporte.isError = true;
+            return reporte;
+        }
+
+        try {
+
+            FileReader sourceFileReader = new FileReader(archivo);
+
+            EC ec = new EC(sourceFileReader);
+
+            ec.programa();
+
+            var errores = ec.tablaErrores;
+
+            reporte.lineas.add("Se pasó la prueba semántica con éxito.");
+            reporte.lineas.add("No se encontraron errores.");
+
+            if (!errores.isEmpty()){
+
+                reporte.isError = true;
+                reporte.lineas.clear();
+                String str1 = "encontraron";
+                String str2 = "errores";
+                int cErrores = errores.size();
+
+                if (cErrores == 1) {
+                    str1 = "encontró";
+                    str2 = "error";
+                }
+
+                reporte.lineas.add(String.format("Se %s %d %s durante la prueba semántica:", str1, cErrores, str2));
+                reporte.lineas.add(" ");
+
+                var errors = errores.stream()
+                                  .map(formaLista)
+                                  .flatMap(flatMapper)
+                                  .toList();
+
+                reporte.lineas.addAll(errors);
+            }
+
+            return reporte;
+
+        } catch (FileNotFoundException ex) {
+            reporte.lineas.add("ERROR: No se encontró el archivo.");
+            reporte.isError = true;
+        } catch (ParseException ex) {
+            reporte.lineas.clear();
+            reporte.lineas.add("Ha ocurrido un error inesperado, intente de nuevo.");
+            reporte.isError = true;
+        }
+
+        return reporte;
+
+    }
+
+    public static void main(String[] args) {
+
+        String archivo = "";
+        String fase = "sem";
+
+        if (args.length != 0) {
+            archivo = args[0];
+        }
+
+        if (archivo.startsWith("-")) {
+            fase = archivo.substring(1);
+
+            if (args.length > 1) {
+                archivo = args[1];
+            }else{
+                archivo = "";
+            }
+
+        }
+
+        Reporte reporte = null;
+
+        switch (fase) {
+            case "l": // Fase léxica
+                reporte = lexica(archivo);
+                break;
+            case "sem": // Fase semántica
+                reporte = semantica(archivo);
+                break;
+            default: // Fase no definida
+                reporte = new Reporte();
+                reporte.isError = true;
+                reporte.lineas.add("ERROR: Esta fase todavía no está implementada.");
+                break;
+        }
+
+        reporte.lineas = reporte.lineas.stream()
+                                .map(tabMapper)
+                                .toList();
+
+        int maxLength = reporte.lineas
+                               .stream()
+                               .mapToInt(intMapper)
+                               .max()
+                               .orElse(0);
+
+        // Top border
+        System.out.print("╔");
+        for (int i = 0; i < maxLength + 2; i++) {
+            System.out.print("═");
+        }
+        System.out.println("╗");
+
+        // Content with side borders
+        for (String linea : reporte.lineas) {
+            System.out.printf("║ %-" + maxLength + "s ║\n", linea);
+        }
+
+        // Bottom border
+        System.out.print("╚");
+        for (int i = 0; i < maxLength + 2; i++) {
+            System.out.print("═");
+        }
+        System.out.println("╝");
+
+        System.exit(reporte.isError ? -1 : 0);
+
+    }
+
+    public EC(FileReader fileReader) {
+        this((Reader)fileReader);
+
+        token_source.compilador = this;
+
+    }
+
+    private void processError(ParseException ex, String from){
+
+        // Tokens esperados
+        StringBuilder expected = new StringBuilder();
+
+        int maxSize = 0;
+
+        for (int i = 0; i < ex.expectedTokenSequences.length; i++) {
+            if (maxSize < ex.expectedTokenSequences[i].length) {
+                maxSize = ex.expectedTokenSequences[i].length;
+            }
+            for (int j = 0; j < ex.expectedTokenSequences[i].length; j++) {
+                expected.append(tokenImage[ex.expectedTokenSequences[i][j]]).append(' ');
+            }
+
+        }
+
+        Token tokenError = ex.currentToken.next;
+
+        // Tokens encontrados
+        ArrayList<Token> tokens = new ArrayList<Token>();
+        tokens.add(tokenError);
+
+        for (Token t = tokenError; t.next != null; t = t.next) {
+
+            tokens.add(t);
+        }
+
+        String[] expecteds = expected.toString().split(" ");
+
+        StringBuilder msg = new StringBuilder();
+        msg.append("Error sintáctico en ").append(from).append(',')
+        .append(" linea ").append(tokenError.endLine).append(", columna ").append(tokenError.endColumn).append('.');
+
+        if (tokens.size() == 1) {
+
+            if(token.kind == ECConstants.CADENA_TEXTO){
+                msg.append(String.format("\n\tSe encontró el símbolo %s.", tokenImage[token.kind]));
+            } else {
+                msg.append(String.format("\n\tSe encontró el símbolo \"%s\".", token.image));
+
+                if(!tokenImage[tokenError.kind].regionMatches(1, tokenError.image,0,tokenError.image.length()))
+                    msg.append(" (").append(tokenImage[tokenError.kind]).append(')').append('.');
+            }
+
+        } else {
+            msg.append("\n\tSe encontraron los símbolos:");
+            for (Token token : tokens) {
+
+                if(token.kind == ECConstants.CADENA_TEXTO){
+                    msg.append(String.format("\n\t\t - %s.", tokenImage[token.kind]));
+                } else {
+                    msg.append(String.format("\n\t\t - \"%s\".", token.image));
+
+                    if(!tokenImage[token.kind].regionMatches(1, token.image,0,token.image.length()))
+                        msg.append(" (").append(tokenImage[token.kind]).append(')').append('.');
+                }
+
+            }
+        }
+
+        if (expecteds.length == 1){
+            msg.append("\n\tSe esperaba ").append(expecteds[0]).append('.');
+        } else {
+            msg.append("\n\tSe esperaba uno de los siguientes: ");
+            for (String e : expecteds) {
+                msg.append("\n\t - ").append(e);
+            }
+        }
+
+        tablaErrores.add(msg.toString());
+    }
+
+    private void skipTo(Integer end, Integer... kinds) {
+
+        List<Integer> kindsList = Arrays.asList(kinds);
+
+        HashSet<Integer> cKinds = new HashSet<Integer>(kindsList);
+        cKinds.add(end);
+        cKinds.add(FIN_FUNCION);
+        cKinds.add(FIN);
+        cKinds.add(EOF);
+
+        Token oldToken = token;
+        boolean sw = true;
+        int selectedKind = EC.EOF;
+
+        do {
+            token = getNextToken();
+
+            for (Integer kind : cKinds) {
+                sw &= token.kind != kind;
+
+                if (!sw) {
+                    selectedKind = kind;
+                    break;
+                }
+            }
+
+        } while (sw);
+
+        if (selectedKind != end) {
+            token = oldToken;
+            jj_kind = selectedKind;
+        }
+
+    }
+
+}
+
 PARSER_END(EC)
 
+TOKEN_MGR_DECLS:{
+    EC compilador;
+}
 // Inicio y fin del programa
 TOKEN : {
 
-    <INICIO: "Inicio">{
-        matchedToken.image += " -> PR_Arranque_Programa";
-        //System.out.println(image + " -> PR_Arranque_Programa");
-    }
+    <INICIO: "Inicio">
     |
-    <FIN: "Fin">{
-        matchedToken.image += " -> PR_Fin_Programa";
-        // System.out.println(image + " -> PR_Fin_Programa");
-    }
+    <FIN: "Fin">
 
+}
+
+// Funciones
+TOKEN : {
+
+    <COMA: ",">
+    |
+    <FUNCION: "Funcion" >
+    |
+    <FIN_FUNCION: "FinFuncion">
+    |
+    <RETORNAR: "Retornar">
 }
 
 // Tipos de dato
 TOKEN : {
 
-    <ENTERO: ("Entero" | "entero")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <ENTERO: ("Entero" | "entero")>
     |
-    <FLOTANTE : ("Flotante" | "flotante")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <FLOTANTE: ("Flotante" | "flotante")>
     |
-    <CADENA: ("Cadena" | "cadena")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <CADENA: ("Cadena" | "cadena")>
     |
-    <CARACTER: ("Caracter" | "caracter")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <CARACTER: ("Caracter" | "caracter")>
     |
-    <BOOLEANO: ("Booleano" | "booleano")>{
-        matchedToken.image += " -> PR_Tipo_De_Dato";
-        //System.out.println(image + " -> PR_Tipo_De_Dato");
-    }
+    <BOOLEANO: ("Booleano" | "booleano")>
+}
+
+// Escritura, Lectura y Definición de variables
+TOKEN : {
+    <INTERPRETAR: "Interpretar">
+    |
+    <ESCRIBIR: "Escribir">
+    |
+    <ESTABLECER: "Establecer">
+}
+
+// Operadores
+TOKEN : {
+    <ASIGNACION: "=">
+    |
+    <SUMA: "+">
+    |
+    <RESTA: "-">
+    |
+    <MULTIPLICACION: "*">
+    |
+    <DIVISION: "/">
+    |
+    <MODULO: "%">
+    |
+    <LOGICO_AND: "&&">
+    |
+    <LOGICO_OR: "||">
+    |
+    <LOGICO_NOT: "!">
+    |
+    <OPERADOR_IGUAL: "==">
+    |
+    <OPERADOR_DIFERENTE: "!=">
+    |
+    <OPERADOR_MAYOR: ">">
+    |
+    <OPERADOR_MENOR: "<">
+    |
+    <OPERADOR_MAYOR_IGUAL: ">=">
+    |
+    <OPERADOR_MENOR_IGUAL: "<=">
+    |
+    <OPERADOR_DOS_PUNTOS: ":">
+    |
+    <PAREN_ABIERTO: "(">
+    |
+    <PAREN_CERRADO: ")">
+    |
+    <INDICE_ABIERTO: "[">
+    |
+    <INDICE_CERRADO: "]">
 }
 
 // Constantes/Literales
@@ -425,267 +663,65 @@ TOKEN : {
     |
     <#NUMERO: ["0" - "9"]>
     |
-   /*<#SIMBOLO: [",", ".", " ", ":", "°", "!", "¬", "|", "#", "$", "%", "&",
-                "/", "(", ")", "=", "?", "¿", "¡", "@", "¨", "´", "+", "*",
-                "~", "{", "[", "^", "}", "]", "`", "<", ">", ";", "-", "_", "\\",
-                "\"", "\'"]>
-    |*/
-    <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">{
-        matchedToken.image += " -> Cadena_Texto";
-        //System.out.println(image + " -> Cadena_Texto");
-    }
+    <CADENA_TEXTO: "\"" ( ~["\""] )* "\"">
     |
-    <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">{
-        matchedToken.image += " -> Caracter_Texto";
-        //System.out.println(image + " -> Caracter_Texto");
-    }
+    <CARACTER_TEXTO: "'"( ~["'"] | "" )"'">
     |
-    <NUMERO_ENTERO: ("-" | "" | "+")(<NUMERO>)+>{
-        matchedToken.image += " -> Numero_Entero";
-        //System.out.println(image + " -> Numero_Entero");
-    }
+    <NUMERO_ENTERO: (<NUMERO>)+>
     |
-    <NUMERO_DECIMAL: ("-" | "" | "+")(<NUMERO>)+"."(<NUMERO>)+>{
-        matchedToken.image += " -> Numero_Decimal";
-        //System.out.println(image + " -> Numero_Decimal");
-    }
+    <NUMERO_DECIMAL: (<NUMERO>)+"."(<NUMERO>)+>
     |
-    <BOOLEANO_FALSO: "Falso">{
-        matchedToken.image += " -> PR_Booleano_Falso";
-        //System.out.println(image + " -> PR_Booleano_Falso");
-    }
+    <BOOLEANO_FALSO: "Falso">
     |
-    <BOOLEANO_VERDADERO: "Verdadero">{
-        matchedToken.image += " -> PR_Booleano_Verdadero";
-        //System.out.println(image + " -> PR_Booleano_Verdadero");
-    }
+    <BOOLEANO_VERDADERO: "Verdadero">
     |
-    <COMENTARIO: "#"( ~["\n", "\r"] )*>{
-        matchedToken.image += " -> Comentario";
-        //System.out.println(image + " -> Comentario");
-    }
-    |
-    <DELIMITADOR: ";">{
-        matchedToken.image += " -> Delimitador";
-        //System.out.println(image + " -> Delimitador");
-    }
+    <DELIMITADOR: ";">
 
-}
-
-// Escritura, Lectura y Definición de variables
-TOKEN : {
-    <INTERPRETAR: "Interpretar">{
-        matchedToken.image += " -> PR_Lectura";
-        //System.out.println(image + " -> PR_Lectura");
-    }
-    |
-    <ESCRIBIR: "Escribir">{
-        matchedToken.image += " -> PR_Escritura";
-        //System.out.println(image + " -> PR_Escritura");
-    }
-    |
-    <ESTABLECER: "Establecer">{
-        matchedToken.image += " -> PR_Definicion_Varible";
-        //System.out.println(image + " -> PR_Definicion_Varible");
-    }
-}
-
-// Operadores
-TOKEN : {
-    <ASIGNACION: "=">{
-        matchedToken.image += " -> Operador_Asignacion";
-        //System.out.println(image + " -> Operador_Asignacion");
-    }
-    |
-    <SUMA: "+">{
-        matchedToken.image += " -> Operador_Suma";
-        //System.out.println(image + " -> Operador_Suma");
-    }
-    |
-    <RESTA: "-">{
-        matchedToken.image += " -> Operador_Resta";
-        //System.out.println(image + " -> Operador_Resta");
-    }
-    |
-    <MULTIPLICACION: "*">{
-        matchedToken.image += " -> Operador_Mult";
-        //System.out.println(image + " -> Operador_Mult");
-    }
-    |
-    <DIVISION: "/">{
-        matchedToken.image += " -> Operador_Div";
-        //System.out.println(image + " -> Operador_Div");
-    }
-    |
-    <MODULO: "%">{
-        matchedToken.image += " -> Operador_Mod";
-        //System.out.println(image + " -> Operador_Mod");
-    }
-    |
-    <LOGICO_AND: "&&">{
-        matchedToken.image += " -> Operador_Logico_AND";
-        //System.out.println(image + " -> Operador_Logico_AND");
-    }
-    |
-    <LOGICO_OR: "||">{
-        matchedToken.image += " -> Operador_Logico_OR";
-        //System.out.println(image + " -> Operador_Logico_OR");
-    }
-    |
-    <LOGICO_NOT: "!">{
-        matchedToken.image += " -> Operador_Logico_NOT";
-        //System.out.println(image + " -> Operador_Logico_NOT");
-    }
-    |
-    <ASIGNACION_COMPUESTA: (<SUMA>|<RESTA>|<MULTIPLICACION>|<DIVISION>|<MODULO>|<LOGICO_AND>|<LOGICO_OR>)<ASIGNACION>>{
-        matchedToken.image += " -> Operador_Asignacion_Compuesta";
-        //System.out.println(image + " -> Operador_Asignacion_Compuesta");
-    }
-    |
-    <OPERADOR_IGUAL: "==">{
-        matchedToken.image += " -> Operador_igualQue";
-        //System.out.println(image + " -> Operador_igualQue");
-    }
-    |
-    <OPERADOR_DIFERENTE: "!=">{
-        matchedToken.image += " -> Operador_diferente";
-        //System.out.println(image + " -> Operador_diferente");
-    }
-    |
-    <OPERADOR_MAYOR: ">">{
-        matchedToken.image += " -> Operador_mayorQue";
-        //System.out.println(image + " -> Operador_mayorQue");
-    }
-    |
-    <OPERADOR_MENOR: "<">{
-        matchedToken.image += " -> Operador_menorQue";
-        //System.out.println(image + " -> Operador_menorQue");
-    }
-    |
-    <OPERADOR_MAYOR_IGUAL: ">=">{
-        matchedToken.image += " -> Operador_mayorIgualQue";
-        //System.out.println(image + " -> Operador_mayorIgualQue");
-    }
-    |
-    <OPERADOR_MENOR_IGUAL: "<=">{
-        matchedToken.image += " -> Operador_menorIgualQue";
-        // System.out.println(image + " -> Operador_menorIgualQue");
-    }
-    |
-    <OPERADOR_DOS_PUNTOS: ":">{
-        matchedToken.image += " -> Operador_Dos_Puntos";
-        //System.out.println(image + " -> Operador_Dos_Puntos");
-    }
-    |
-    <PAREN_ABIERTO: "(">{
-        matchedToken.image += " -> Parentesis_Abierto";
-        // System.out.println(image + " -> Parentesis_Abierto");
-    }
-    |
-    <PAREN_CERRADO: ")">{
-        matchedToken.image += " -> Parentesis_Cerrado";
-        // System.out.println(image + " -> Parentesis_Cerrado");
-    }
 }
 
 // Ciclos
 TOKEN : {
-    <INICIO_CICLO_PARA: "Para">{
-        matchedToken.image += " -> PR_Ciclo_Para";
-        //System.out.println(image + " -> PR_Ciclo_Para");
-    }
+    <INICIO_CICLO_PARA: "Para">
     |
-    <CONDICION_CICLO_PARA: "Hasta que">{
-        matchedToken.image += " -> PR_Condicion_Ciclo_Para";
-        //System.out.println(image + " -> PR_Condicion_Ciclo_Para");
-    }
+    <CONDICION_CICLO_PARA: "Hasta que">
     |
-    <INCREMENTO_CICLO_PARA: "Con incremento">{
-        matchedToken.image += " -> PR_Incremento_Ciclo_Para";
-        //System.out.println(image + " -> PR_Incremento_Ciclo_Para");
-    }
+    <INCREMENTO_CICLO_PARA: "Con incremento">
     |
-    <FIN_CICLO_PARA: "FinPara">{
-        matchedToken.image += " -> PR_Fin_Ciclo_Para";
-        //System.out.println(image + " -> PR_Fin_Ciclo_Para");
-    }
+    <FIN_CICLO_PARA: "FinPara">
     |
-    <INICIO_CICLO_MIENTRAS: "Mientras">{
-        matchedToken.image += " -> PR_Ciclo_Mientras";
-        //System.out.println(image + " -> PR_Ciclo_Mientras");
-    }
+    <INICIO_CICLO_MIENTRAS: "Mientras">
     |
-    <FIN_CICLO_MIENTRAS: "FinMientras">{
-        matchedToken.image += " -> PR_Fin_Ciclo_Mientras";
-        //System.out.println(image + " -> PR_Fin_Ciclo_Mientras");
-    }
+    <FIN_CICLO_MIENTRAS: "FinMientras">
     |
-    <INICIO_CICLO_REPETIR: "Repetir">{
-        matchedToken.image += " -> PR_Ciclo_Repetir";
-        //System.out.println(image + " -> PR_Ciclo_Repetir");
-    }
+    <INICIO_CICLO_REPETIR: "Repetir">
     |
-    <CONDICION_CICLO_REPETIR: "Finaliza cuando">{
-        matchedToken.image += " -> PR_Condicion_Ciclo_Repetir";
-        //System.out.println(image + " -> PR_Condicion_Ciclo_Repetir");
-    }
+    <CONDICION_CICLO_REPETIR: "Finaliza cuando">
 }
 
 // Condicionales
 TOKEN : {
-    <INICIO_CONDICIONAL_SI:"Si"> {
-        matchedToken.image += " -> PR_Condicional_Si";
-        //System.out.println(image + " -> PR_Condicional_Si");
-    }
+    <INICIO_CONDICIONAL_SI:"Si">
     |
-    <ENTONCES:"Entonces">{
-        matchedToken.image += " -> PR_Entonces";
-        //System.out.println(image + " -> PR_Entonces");
-    }
+    <ENTONCES:"Entonces">
     |
-    <CONDICIONAL_SINO:"Sino">{
-        matchedToken.image += " -> PR_Condicional_Sino";
-        //System.out.println(image + " -> PR_Condicional_Sino");
-    }
+    <CONDICIONAL_SINO:"Sino">
     |
-    <FIN_CONDICIONAL_SI:"FinSi">{
-        matchedToken.image += " -> PR_Fin_Condicional_Si";
-        //System.out.println(image + " -> PR_Fin_Condicional_Si");
-    }
+    <FIN_CONDICIONAL_SI:"FinSi">
     |
-    <INICIO_CONDICIONAL_CONFORME:"Conforme">{
-        matchedToken.image += " -> PR_Condicional_Conforme";
-        //System.out.println(image + " -> PR_Condicional_Conforme");
-    }
+    <INICIO_CONDICIONAL_CONFORME:"Conforme">
     |
-    <CASO:"Caso">{
-        matchedToken.image += " -> PR_Conforme_Caso";
-        //System.out.println(image + " -> PR_Conforme_Caso");
-    }
+    <CASO:"Caso">
     |
-    <CASO_PREDETERMINADO:"En otro caso">{
-        matchedToken.image += " -> PR_Conforme_Caso_Predeterminado";
-        //System.out.println(image + " -> PR_Conforme_Caso_Predeterminado");
-    }
+    <CASO_PREDETERMINADO:"En otro caso">
     |
-    <FIN_CONFORME:"FinConforme">{
-        matchedToken.image += " -> PR_Fin_Condicional_Conforme";
-        //System.out.println(image + " -> PR_Fin_Condicional_Conforme");
-    }
+    <FIN_CONFORME:"FinConforme">
     |
-    <HACER : "Hacer">{
-        matchedToken.image += " -> PR_Hacer";
-        //System.out.println(image + " -> PR_Hacer");
-    }
+    <HACER : "Hacer">
 }
 
 //Variables
 TOKEN : {
-    <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>{
-        matchedToken.image += " -> Variable";
-        //System.out.println(image + " -> Variable");
-    }
-
+    <VARIABLE:(<LETRA> | "_")(<NUMERO> | <LETRA> | "_")*>
 }
 
 SKIP : {
@@ -693,49 +729,242 @@ SKIP : {
     | "\t"
     | "\r\n"
     | "\n"
+    | <COMENTARIO: "#" (~["\r", "\n"])* ( ( "\r" )? "\n" | "\r")>
+
 }
 
 // Tokens invalidos
 TOKEN : {
 
-    <NUMERO_INVALIDO: ("-" | "" | "+")(<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>
-    |
-    <INVALIDO: ~[]>
+    <NUMERO_INVALIDO: (<NUMERO>)*("."( <NUMERO> | <LETRA> )* | <LETRA>)+>{
+
+        compilador.tablaErrores.add("Error léxico, línea "
+                        + matchedToken.beginLine + ", columna " + matchedToken.beginColumn
+                        + ".\n\tSe encontró un número inválido '" + matchedToken.image + "'."
+                        + "\n\tPosible solución: Remover o revisar número.");
+
+    }
+    | <INVALIDO: ~[]>{
+
+        compilador.tablaErrores.add("Error léxico, línea " +
+                     matchedToken.beginLine + ", columna " + matchedToken.beginColumn +
+                     ".\nSe encontró símbolo inválido '" + matchedToken.image + "'." +
+                     "\n\tPosible solución: Remover símbolo.");
+
+    }
 
 }
 
 // Gramaticas
 
-void programa(): { }{
-
-    try {
-        <INICIO> ( sentencias() )+ <FIN><EOF>
-    } catch (ParseException ex){
-        processError(ex, "programa principal");
-
-        skipTo(FIN);
+ArrayList<Integer> argumentos(Ambito ambito) :
+{
+    int tipoDato;
+    ArrayList<Integer> argumentos = new ArrayList<Integer>();
+}
+{
+    tipoDato = expresion(ambito)
+    {
+        argumentos.add(tipoDato);
+    }
+    (
+        <COMA>
+        tipoDato = expresion(ambito)
+        {
+            argumentos.add(tipoDato);
+        }
+    )*
+    {
+        return argumentos;
     }
 }
 
-void sentencias():{}{
+ArrayList<Expresion> declaracionArgumentos(Ambito ambito) :
+{
+    Expresion argumento = new Expresion();
+    ArrayList<Expresion> argumentos = new ArrayList<Expresion>();
+} {
+    argumento.tipoDato = tiposDato()
+    <VARIABLE>
+    {
 
-    <COMENTARIO> |
-    sentenciaAsignacion() |
-    sentenciaDeclaracionVariables() |
-    leerDato() |
-    imprimirDato() |
-    sentenciaSi() |
-    sentenciaConforme() |
-    sentenciaPara() |
-    sentenciaRepetir() |
-    sentenciaMientras()
+        if(ambito.tablaSimbolos.containsKey(token.image)){
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                           + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                             "\n\tQuitar declaración doble.");
+
+            argumento.isError = true;
+        }
+
+        argumento.token = token;
+        argumento.nombre = token.image;
+
+        if(!argumento.tieneErrores()){
+            ambito.tablaSimbolos.put(argumento.nombre, argumento);
+        }
+
+        argumentos.add(argumento);
+
+    }
+    (
+        <COMA>
+        {
+            argumento = new Expresion();
+        }
+        argumento.tipoDato = tiposDato()
+        <VARIABLE>
+        {
+
+            if(ambito.tablaSimbolos.containsKey(token.image)){
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                               + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                                 "\n\tQuitar declaración doble.");
+
+                argumento.isError = true;
+            }
+
+            argumento.token = token;
+            argumento.nombre = token.image;
+
+            if(!argumento.tieneErrores()){
+                ambito.tablaSimbolos.put(argumento.nombre, argumento);
+            }
+
+            argumentos.add(argumento);
+        }
+    )*
+    {
+        return argumentos;
+    }
+}
+
+void declaracionFuncion(Ambito ambito) :
+{
+    int tipoDato;
+    Expresion funcion = new Expresion();
+    funcion.tipoExpresion = EXP_FUNCION;
+    funcion.tipoDato = TIPO_VACIO;
+
+    Ambito ambitoFuncion = new Ambito();
+}{
+    <FUNCION> ( funcion.tipoDato = tiposDato() )?
+    <VARIABLE>
+    {
+
+        if (ambito.tablaSimbolos.containsKey(token.image)) {
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                           + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                             "\n\tQuitar declaración doble.");
+
+            funcion.isError = true;
+        }
+
+        funcion.nombre = token.image;
+        funcion.token = token;
+        ambitoFuncion.tablaSimbolos.put(funcion.nombre, funcion);
+
+        if (!funcion.tieneErrores()) {
+            ambito.tablaSimbolos.put(funcion.nombre, funcion);
+        }
+
+    }
+     <PAREN_ABIERTO> ( funcion.expresiones = declaracionArgumentos(ambitoFuncion) )? <PAREN_CERRADO>
+    ( sentencias(ambitoFuncion) )*
+    (
+        <RETORNAR>
+        tipoDato = expresion(ambitoFuncion)
+        <DELIMITADOR>
+        {
+
+            if (!funcion.tieneErrores() && funcion.tipoDato == TIPO_VACIO) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar ningun valor."
+                               + "\n\tQuitar retornar.");
+
+                funcion.isError = true;
+
+            }
+
+            if (!funcion.tieneErrores() && funcion.tipoDato != tipoDato) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar un tipo de dato \""
+                               +  Expresion.getTipoDatoNombre(tipoDato) + "\"."
+                               + "\n\tRetornar tipo de dato \"" + Expresion.getTipoDatoNombre(funcion.tipoDato) + "\"." );
+
+                funcion.isError = true;
+
+            }
+
+        }
+    )?
+    <FIN_FUNCION> <VARIABLE>
+    {
+        if(!funcion.nombre.equals(token.image)){
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                           + ".\n\tLa función debe de terminar con el mismo nombre."
+                           + "\n\tColocar el nombre de la función después del FinFuncion.");
+
+            if (!funcion.tieneErrores()) {
+                ambito.tablaSimbolos.remove(funcion.nombre);
+            }
+
+            funcion.isError = true;
+
+
+        }
+    }
+}
+
+void programa():
+{
+    Ambito ambitoPrincipal = new Ambito();
+}{
+
+    try {
+        // Nuevo
+        ( declaracionFuncion(ambitoPrincipal) )*
+        <INICIO> ( sentencias(ambitoPrincipal) )+ <FIN>
+        <EOF>
+
+        // Eliminado
+        // <INICIO> ( sentencias() )+ <FIN><EOF>
+    } catch (ParseException ex){
+
+        processError(ex, "programa principal");
+
+        skipTo(FIN_FUNCION);
+    }
+}
+
+void sentencias(Ambito ambito):{ }{
+
+    sentenciaDeclaracion(ambito) |
+    sentenciaAsignacion(ambito) |
+    leerDato(ambito) |
+    imprimirDato(ambito) |
+    sentenciaSi(ambito) |
+    sentenciaConforme(ambito) |
+    sentenciaPara(ambito) |
+    sentenciaRepetir(ambito) |
+    sentenciaMientras(ambito)
 
 }
 
-void sentenciaAsignacion():{}{
+void sentenciaAsignacion(Ambito ambito) :
+{
+    Tupla<Integer, Token> tupla;
+} {
 
     try {
-        <VARIABLE> asignacion() <DELIMITADOR>
+        tupla = llamadas(ambito)
+        ( asignacion(ambito, tupla) )?
+        <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de asignacion");
@@ -744,68 +973,467 @@ void sentenciaAsignacion():{}{
 
     }
 
-
 }
 
-void sentenciaDeclaracionVariables():{}{
+void sentenciaDeclaracion(Ambito ambito) : { } {
 
     try {
-        declaracionVariables() <DELIMITADOR>
+        declaracion(ambito) <DELIMITADOR>
     } catch (ParseException ex) {
 
-        processError(ex, "sentencia de declaración de variable");
+        processError(ex, "sentencia de declaración");
 
         skipTo(DELIMITADOR, SENTENCES_BEGIN);
 
     }
+}
+
+int tiposDato() : { } {
+    ( <ENTERO>
+    |
+    <FLOTANTE>
+    |
+    <CADENA>
+    |
+    <CARACTER>
+    |
+    <BOOLEANO> ) { return token.kind << 1; }
+}
+
+int constantes(): { }{
+
+    <NUMERO_ENTERO> { return TIPO_ENTERO; } // 2
+    |
+    <NUMERO_DECIMAL> { return TIPO_FLOTANTE; } // 2.3 0.0
+    |
+    <CADENA_TEXTO> { return TIPO_CADENA; } // "Hola"
+    |
+    <CARACTER_TEXTO> { return TIPO_CARACTER; } // 'c'
+    |
+    <BOOLEANO_FALSO> { return TIPO_BOOLEANO; }
+    |
+    <BOOLEANO_VERDADERO> { return TIPO_BOOLEANO; }
+}
+
+void asignacion(Ambito ambito, Tupla<Integer, Token> t):
+{
+    boolean error = t == null;
+    Token tk = t.getSegundo();
+    if (!error && !ambito.tablaSimbolos.containsKey(tk.image)) {
+
+        tablaErrores.add("Error semántico, Línea " + tk.beginLine + ", columna " + tk.beginColumn
+                        + ".\n\tEl símbolo \"" + tk.image + "\" no está declarado en este ámbito." +
+                         "\n\tDeclarar el símbolo.");
+
+        error = true;
+    }
+
+    Expresion exp = ambito.tablaSimbolos.get(tk.image);
+
+    if(!error && !exp.tieneErrores() && exp.tipoExpresion == EXP_FUNCION) {
+
+        tablaErrores.add("Error semántico, Línea " + tk.beginLine + ", columna " + tk.beginColumn
+                        + ".\n\t\""+ exp.nombre +"\" no es un símbolo asignable." +
+                          "\n\tNo se le puede asignar un valor a una llamada de función.");
+
+        error = true;
+    }
+
+    int tipoDato;
+} {
+    <ASIGNACION> tipoDato = expresion(ambito)
+    {
+        if(tipoDato == 0) {
+            error = true;
+        }
+
+        int expTipoDato = t.getPrimero();
+        if(expTipoDato == -2){
+            expTipoDato = exp.tipoDato;
+        }
+
+        if(!error && !exp.tieneErrores() && expTipoDato != tipoDato){
+            Token token = exp.token;
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                           + ".\n\tNo se puede asignar un tipo de dato \"" + Expresion.getTipoDatoNombre(tipoDato)
+                           + "\" a un tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\"."
+                           + "\n\tSe esperaba tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\".");
+
+        }
+
+    }
+}
+
+int expresion(Ambito ambito):
+{
+    int tipoDato;
+}
+{
+    tipoDato = logicoOr(ambito) { return tipoDato; }
+}
+
+int logicoOr(Ambito ambito) :
+{
+    int tipoIzq;
+    int tipoDer;
+    Token op;
+    boolean error = false;
+    boolean sw = false;
+}{
+    tipoIzq = logicoAnd(ambito)
+    {
+        if(tipoIzq == 0) error = true;
+
+    }
+    ( <LOGICO_OR> { op = token; }
+        tipoDer = logicoAnd(ambito)
+        {
+
+            if (!error &&
+                (tipoIzq != tipoDer || !Expresion.puedeOperar(tipoIzq, op.kind)
+                || !Expresion.puedeOperar(tipoDer, op.kind))) {
+
+                tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                                + ".\n\tNo se puede aplicar el operador '" + op.image +  "' entre tipos de dato \"" +
+                                 Expresion.getTipoDatoNombre(tipoIzq) + "\" y \"" + Expresion.getTipoDatoNombre(tipoDer) + "\".");
+
+                error = true;
+
+            }
+
+            sw = true;
+
+        }
+    )* { return error ? 0 : sw ? TIPO_BOOLEANO : tipoIzq; }
+}
+
+int logicoAnd(Ambito ambito) :
+{
+    int tipoIzq;
+    int tipoDer;
+    Token op;
+    boolean error = false;
+    boolean sw = false;
+}{
+    tipoIzq = comparacion(ambito)
+    {
+        if(tipoIzq == 0) error = true;
+    }
+    ( <LOGICO_AND> { op = token; }
+        tipoDer = comparacion(ambito)
+        {
+
+            if (!error &&
+                (tipoIzq != tipoDer || !Expresion.puedeOperar(tipoIzq, op.kind)
+                || !Expresion.puedeOperar(tipoDer, op.kind))) {
+
+                tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                                + ".\n\tNo se puede aplicar el operador '" + op.image +  "' entre tipos de dato \"" +
+                                 Expresion.getTipoDatoNombre(tipoIzq) + "\" y \"" + Expresion.getTipoDatoNombre(tipoDer) + "\".");
+
+                error = true;
+
+            }
+
+            sw = true;
+
+       }
+    )* { return error ? 0 : sw ? TIPO_BOOLEANO : tipoIzq; }
+}
+
+int comparacion(Ambito ambito) :
+{
+    int tipoIzq;
+    int tipoDer;
+    Token op;
+    boolean error = false;
+    boolean sw = false;
+}
+{
+    tipoIzq = operando(ambito)
+    {
+        if(tipoIzq == 0) error = true;
+
+    }
+    ( ( <OPERADOR_IGUAL> | <OPERADOR_DIFERENTE> | <OPERADOR_MAYOR_IGUAL> | <OPERADOR_MENOR_IGUAL> | <OPERADOR_MAYOR> | <OPERADOR_MENOR> ) { op = token; }
+        tipoDer = operando(ambito)
+        {
+
+            if (!error &&
+                (tipoIzq != tipoDer || !Expresion.puedeOperar(tipoIzq, op.kind)
+                || !Expresion.puedeOperar(tipoDer, op.kind))) {
+
+                tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                                + ".\n\tNo se puede aplicar el operador '" + op.image +  "' entre tipos de dato \"" +
+                                 Expresion.getTipoDatoNombre(tipoIzq) + "\" y \"" + Expresion.getTipoDatoNombre(tipoDer) + "\".");
+
+                error = true;
+
+            }
+
+            sw = true;
+
+       }
+    )? { return error ? 0 : sw ? TIPO_BOOLEANO : tipoIzq; }
+}
+
+int operando(Ambito ambito) :
+{
+    int tipoIzq;
+    int tipoDer;
+    Token op;
+    boolean error = false;
+}{
+    tipoIzq = termino(ambito)
+    {
+        if(tipoIzq == 0) error = true;
+
+    }
+    ( ( <RESTA> | <SUMA> ) { op = token; }
+        tipoDer = termino(ambito)
+        {
+
+            if (!error &&
+                (tipoIzq != tipoDer || !Expresion.puedeOperar(tipoIzq, op.kind)
+                || !Expresion.puedeOperar(tipoDer, op.kind))) {
+
+                tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                                + ".\n\tNo se puede aplicar el operador '" + op.image +  "' entre tipos de dato \"" +
+                                 Expresion.getTipoDatoNombre(tipoIzq) + "\" y \"" + Expresion.getTipoDatoNombre(tipoDer) + "\".");
+
+                error = true;
+
+            }
+
+       }
+    )* { return error ? 0 : tipoIzq; }
+}
+
+int termino(Ambito ambito):
+{
+    int tipoIzq;
+    int tipoDer;
+    Token op;
+    boolean error = false;
+}{
+    tipoIzq = factor(ambito)
+    {
+        if(tipoIzq == 0) error = true;
+
+    }
+    ( ( <MULTIPLICACION> | <DIVISION> | <MODULO> ) { op = token; }
+       tipoDer = factor(ambito)
+       {
+
+            if (!error &&
+                (tipoIzq != tipoDer || !Expresion.puedeOperar(tipoIzq, op.kind)
+                || !Expresion.puedeOperar(tipoDer, op.kind))) {
+
+                tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                                + ".\n\tNo se puede aplicar el operador '" + op.image +  "' entre tipos de dato \"" +
+                                 Expresion.getTipoDatoNombre(tipoIzq) + "\" y \"" + Expresion.getTipoDatoNombre(tipoDer) + "\".");
+
+                error = true;
+
+            }
+
+       }
+    )* { return error ? 0 : tipoIzq; }
+}
+
+int factor(Ambito ambito) :
+{
+    int tipoDato;
+    Expresion exp = null;
+    Token op;
+    boolean error = false;
+    Tupla<Integer, Token> tupla;
+} {
+
+    tupla = llamadas(ambito) { return tupla.getPrimero(); }
+    |
+    tipoDato = constantes() { return tipoDato; }
+    |
+    <PAREN_ABIERTO> tipoDato = expresion(ambito) <PAREN_CERRADO> { return tipoDato; }
+    |
+    <LOGICO_NOT> { op = token; } tipoDato = factor(ambito)
+    {
+        if (!Expresion.puedeOperar(tipoDato, op.kind)){
+
+            tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                            + ".\n\tNo se puede aplicar el operador '" + op.image +  "' en tipo de dato \"" +
+                             Expresion.getTipoDatoNombre(tipoDato) + "\".");
+
+            return 0;
+        }
+
+        return TIPO_BOOLEANO;
+    }
+    |
+    (<SUMA> | <RESTA> ) { op = token; } tipoDato = factor(ambito)
+    {
+        if (!Expresion.puedeOperar(tipoDato, op.kind)){
+
+            tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                        + ".\n\tNo se puede aplicar el operador '" + op.image +  "' en tipo de dato \"" +
+                         Expresion.getTipoDatoNombre(tipoDato) + "\".");
+
+            return 0;
+        }
+
+        return tipoDato;
+    }
 
 }
 
-void tiposDato():{ }{
-    <ENTERO> | <FLOTANTE> | <CADENA> | <CARACTER> | <BOOLEANO>
+Tupla<Integer, Token> llamadas(Ambito ambito) :
+{
+    Expresion exp = null;
+    boolean error = false;
+} {
+    <VARIABLE>
+    {
+
+        if (!ambito.tablaSimbolos.containsKey(token.image)) {
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                            + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito." +
+                             "\n\tDeclarar el símbolo.");
+            error = true;
+        }
+
+        if (!error) {
+            exp = ambito.tablaSimbolos.get(token.image);
+        }
+
+
+    }
+    (
+        indiceArreglo(ambito)
+        {
+            if (!error && exp.tieneErrores() && exp.tipoExpresion != EXP_ARREGLO) {
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es un arreglo.");
+
+                error = true;
+            }
+
+            Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : (exp.tipoDato >> 1) << 1, exp.token);
+
+            return resultado;
+        }
+        |
+        {
+            ArrayList<Integer> args = new ArrayList<Integer>();
+        }
+        <PAREN_ABIERTO> ( args = argumentos(ambito) )? <PAREN_CERRADO>
+        {
+            if (!error && exp.tipoExpresion != EXP_FUNCION) {
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tEl símbolo \"" + exp.token.image + "\" no es una función.");
+
+                error = true;
+            }
+
+            List<Integer> tipoArgumentos = exp.expresiones
+                                              .stream()
+                                              .map(Expresion.mapper)
+                                              .toList();
+
+            if(!args.equals(tipoArgumentos)){
+
+                tablaErrores.add("Error semántico, Línea " + exp.token.beginLine + ", columna " + exp.token.beginColumn
+                               + ".\n\tLos argumentos proporcionados no coinciden con los de la función.");
+
+                error = true;
+
+            }
+
+
+        }
+    )?
+    {
+        Tupla<Integer, Token> resultado = new Tupla<Integer, Token>(error ? 0 : exp.tipoDato, error ? null : exp.token);
+
+        return resultado;
+    }
 }
 
-void constantes():{ }{
-    <NUMERO_ENTERO> | <NUMERO_DECIMAL> | <CADENA_TEXTO> | <CARACTER_TEXTO> | <BOOLEANO_FALSO> | <BOOLEANO_VERDADERO>
+void indiceArreglo(Ambito ambito) :
+{
+    int tipoDato;
+}{
+    (
+        <INDICE_ABIERTO>
+        tipoDato = expresion(ambito)
+        <INDICE_CERRADO>
+        {
+            if(tipoDato != TIPO_ENTERO){
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                + ".\n\tEl tamaño o el indice de un arreglo debe ser un entero.");
+
+            }
+
+        }
+    )+
 }
 
-void asignacion():{}{
-    ( <ASIGNACION> | <ASIGNACION_COMPUESTA> ) condicion()
+void declaracion(Ambito ambito)
+: {
+
+    Expresion declaracion = new Expresion();
+
+} {
+    <ESTABLECER> declaracion.tipoDato = tiposDato()
+    (
+        indiceArreglo(ambito)
+        {
+            declaracion.tipoDato |= 1;
+            declaracion.tipoExpresion = EXP_ARREGLO;
+        }
+    )?
+    <VARIABLE>
+    {
+
+        if (ambito.tablaSimbolos.containsKey(token.image)){
+
+            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                            + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                             "\n\tQuitar declaración doble.");
+
+            declaracion.isError = true;
+        }
+
+        declaracion.token = token;
+        declaracion.nombre = token.image;
+
+        if(!declaracion.tieneErrores()) {
+            ambito.tablaSimbolos.put(declaracion.nombre, declaracion);
+        }
+
+    }
+    ( asignacion(ambito, new Tupla<Integer, Token>(-2, declaracion.token) ) )?
+
 }
 
-void operacion():{ }{
-    ( <LOGICO_NOT> )* ( <VARIABLE> | constantes() | operacionParentesis() )
-    (operadores() ( <LOGICO_NOT> )* (<VARIABLE> | constantes() | operacionParentesis() ))*
-}
-
-void operacionParentesis():{}{
-    <PAREN_ABIERTO> operacion() <PAREN_CERRADO>
-}
-
-void operadores():{}{
-    operadoresAritmeticos() | operadoresLogicos() | operadoresRelacionales()
-}
-
-void operadoresAritmeticos():{}{
-    <SUMA> | <RESTA> | <MULTIPLICACION> | <DIVISION> | <MODULO>
-}
-
-void operadoresRelacionales():{}{
-    <OPERADOR_IGUAL> | <OPERADOR_DIFERENTE> | <OPERADOR_MAYOR> | <OPERADOR_MAYOR_IGUAL> | <OPERADOR_MENOR> | <OPERADOR_MENOR_IGUAL>
-}
-
-void operadoresLogicos():{}{
-    <LOGICO_AND> | <LOGICO_OR>
-}
-
-void declaracionVariables():{}{
-    <ESTABLECER> tiposDato() <VARIABLE> ( asignacion() )?
-}
-
-void leerDato():{}{
+void leerDato(Ambito ambito) : { } {
 
     try {
-        <INTERPRETAR> <VARIABLE> <DELIMITADOR>
+        <INTERPRETAR>
+        <VARIABLE>
+        {
+            if (!ambito.tablaSimbolos.containsKey(token.image)){
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                               + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito."
+                               + "\n\tDeclare una variable para asignarle un valor.");
+
+            }
+        }
+         <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de lectura de dato");
@@ -815,10 +1443,10 @@ void leerDato():{}{
     }
 }
 
-void imprimirDato():{}{
+void imprimirDato(Ambito ambito):{}{
 
     try {
-        <ESCRIBIR> ( constantes() | <VARIABLE> ) <DELIMITADOR>
+        <ESCRIBIR> expresion(ambito) <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de escritura de dato");
@@ -829,11 +1457,20 @@ void imprimirDato():{}{
 
 }
 
-void sentenciaSi():{}{
+void sentenciaSi(Ambito ambito) :
+{
+    Ambito ambitoSi = new Ambito(ambito);
+} {
 
     try {
-        <INICIO_CONDICIONAL_SI> condicion() <ENTONCES> ( sentencias() )+
-        ( <CONDICIONAL_SINO> ( sentencias() )+ )?
+        <INICIO_CONDICIONAL_SI> expresion(ambito) <ENTONCES> ( sentencias(ambitoSi) )*
+        (
+            <CONDICIONAL_SINO>
+            {
+                ambitoSi = new Ambito(ambito);
+            }
+            ( sentencias(ambitoSi) )*
+        )?
         <FIN_CONDICIONAL_SI>
     } catch (ParseException ex) {
 
@@ -845,18 +1482,72 @@ void sentenciaSi():{}{
 
 }
 
-// var1 + 5 < var2 - 2 || 3 + 6 != val3 % 5  <- Lograr esto (Hecho)
-void condicion():{} {
-    operacion()
-    ( operadoresRelacionales() operacion() )*
-}
-
-void sentenciaConforme():{}{
+void sentenciaConforme(Ambito ambito) :
+{
+    boolean error = false;
+    int tipoDatoCaso;
+    Expresion exp = null;
+    Ambito ambitoConforme;
+    HashSet<String> casos = new HashSet<String>();
+} {
 
     try {
-        <INICIO_CONDICIONAL_CONFORME> <VARIABLE> <HACER>
-        ( <CASO> constantes() <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )+
-        ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias() )+ )?
+        <INICIO_CONDICIONAL_CONFORME>
+        <VARIABLE>
+        {
+            if (!ambito.tablaSimbolos.containsKey(token.image)) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                               + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito."
+                               + "\n\tDeclare una variable para asignarle un valor.");
+
+                error = true;
+
+            }
+
+            if (!error) {
+                exp = ambito.tablaSimbolos.get(token.image);
+
+                if (exp.tipoExpresion != EXP_VARIABLE) {
+
+                    tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                   + ".\n\tLa sentencia \"Segun\" solo funciona con variables.");
+
+                    error = true;
+
+                }
+
+            }
+
+        }
+        <HACER>
+        (
+            <CASO>
+            tipoDatoCaso = constantes()
+            {
+
+                if (!error && exp.tipoDato != tipoDatoCaso){
+
+                    tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                   + ".\n\tTipo de dato del caso erróneo."
+                                   + "\n\tEl caso debe tener un valor constante \"" + Expresion.getTipoDatoNombre(exp.tipoDato)  +"\".");
+
+                    error = true;
+                }
+
+                if(!error && !casos.add(token.image)){
+
+                    tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                   + ".\n\tEl caso \"" + token.image + "\" ya existe."
+                                   + "\n\tElimine caso repetido.");
+                }
+
+                ambitoConforme = new Ambito(ambito);
+            }
+            <OPERADOR_DOS_PUNTOS>
+            ( sentencias(ambitoConforme) )*
+        )+
+        ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias(ambitoConforme) )* )?
         <FIN_CONFORME>
     } catch (ParseException ex) {
 
@@ -868,12 +1559,15 @@ void sentenciaConforme():{}{
 
 }
 
-void sentenciaPara():{}{
+void sentenciaPara(Ambito ambito) :
+{
+    Ambito ambitoPara = new Ambito(ambito);
+} {
 
     try {
-        <INICIO_CICLO_PARA> (<VARIABLE> <ASIGNACION> ( constantes() | <VARIABLE> ) | declaracionVariables() )
-        <CONDICION_CICLO_PARA> condicion() <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
-        ( sentencias() )+
+        <INICIO_CICLO_PARA> ( <VARIABLE> asignacion(ambito, new Tupla<Integer, Token>(-2, token) ) | declaracion(ambitoPara) )
+        <CONDICION_CICLO_PARA> expresion(ambitoPara) <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
+        ( sentencias(ambitoPara) )*
         <FIN_CICLO_PARA>
     } catch (ParseException ex) {
 
@@ -886,11 +1580,14 @@ void sentenciaPara():{}{
 
 }
 
-void sentenciaRepetir():{}{
+void sentenciaRepetir(Ambito ambito) :
+{
+    Ambito ambitoRepetir = new Ambito(ambito);
+} {
 
     try {
-        <INICIO_CICLO_REPETIR> ( sentencias() )+
-        <CONDICION_CICLO_REPETIR> condicion() <DELIMITADOR>
+        <INICIO_CICLO_REPETIR> ( sentencias(ambitoRepetir) )*
+        <CONDICION_CICLO_REPETIR> expresion(ambito) <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de bucle Repetir");
@@ -901,11 +1598,14 @@ void sentenciaRepetir():{}{
 
 }
 
-void sentenciaMientras():{}{
+void sentenciaMientras(Ambito ambito) :
+{
+    Ambito ambitoMientras = new Ambito(ambito);
+} {
 
     try {
-        <INICIO_CICLO_MIENTRAS> condicion() <HACER>
-        ( sentencias() )+
+        <INICIO_CICLO_MIENTRAS> expresion(ambito) <HACER>
+        ( sentencias(ambitoMientras) )*
         <FIN_CICLO_MIENTRAS>
     } catch (ParseException ex) {
 
@@ -917,4 +1617,3 @@ void sentenciaMientras():{}{
 
 
 }
-
