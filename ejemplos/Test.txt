@@ -1,0 +1,5 @@
+Inicio
+
+    Establecer Entero a = 2 + 3 + 6;
+
+Fin

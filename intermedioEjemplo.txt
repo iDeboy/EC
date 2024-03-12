@@ -1,0 +1,17 @@
+// a, b, c, d <- Variables globales
+// 2 + 3 * 6
+
+Inicio:
+  * 3 6 t1
+  + 2 t1 t2
+  = @a a
+
+  Ir Inicio
+
+  IrSi a Inicio
+
+  Llamar Suma
+
+
+
+
