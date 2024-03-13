@@ -17,6 +17,9 @@ public class EC {
     final ExpresionVariable ERROR = new ExpresionVariable("", TipoDato.INDEFINIDO).conError(true);
 
     int tempCount = 1;
+    int siCount = 1;
+    int conCount = 1;
+    int cicCount = 1;
 
     Expresion hacerBinaria(Token operador, List<Expresion> expresiones) {
 
@@ -273,11 +276,12 @@ public class EC {
     public abstract class Expresion implements Cloneable {
 
         protected boolean _error;
+        protected Quadruple _quadruple;
 
         public abstract int getTipoExpresion();
         public abstract TipoDato getTipo();
         public abstract String toString();
-        public abstract Quadruple toQuadruple();
+        public abstract Quadruple toQuadrupleImp();
 
         public final static int EXP_CONSANTE = 1;
         public final static int EXP_VARIABLE = 2;
@@ -300,6 +304,17 @@ public class EC {
         public final static int EXP_OR = ECConstants.LOGICO_OR;                     // a || b
 
         public final static int EXP_NO = ECConstants.LOGICO_NOT;                    // !a
+
+        public Quadruple toQuadruple() {
+
+            if (_quadruple == null) {
+
+                _quadruple = toQuadrupleImp();
+
+            }
+
+            return _quadruple;
+        }
 
         public boolean esError() {
             return _error;
@@ -352,8 +367,8 @@ public class EC {
             return _nombre;
         }
 
-        public Quadruple toQuadruple() {
-            return new Quadruple("=", _nombre, "");
+        public Quadruple toQuadrupleImp() {
+            return new Quadruple("Est", "", "", "@" + _nombre);
         }
 
     }
@@ -384,7 +399,7 @@ public class EC {
             return _valor.toString();
         }
 
-        public Quadruple toQuadruple() {
+        public Quadruple toQuadrupleImp() {
             return new Quadruple("=", _valor, "");
         }
 
@@ -428,7 +443,7 @@ public class EC {
             return _indices.size();
         }
 
-        public Quadruple toQuadruple() {
+        public Quadruple toQuadrupleImp() {
 
             StringBuilder sb = new StringBuilder();
 
@@ -515,7 +530,7 @@ public class EC {
             return _nombre;
         }
 
-        public Quadruple toQuadruple() {
+        public Quadruple toQuadrupleImp() {
             return new Quadruple("Ir", _nombre, "");
         }
 
@@ -567,7 +582,7 @@ public class EC {
             return _operador + " " + _izq + " " + _der;
         }
 
-        public Quadruple toQuadruple() {
+        public Quadruple toQuadrupleImp() {
 
             Quadruple izq = _izq.toQuadruple();
             Quadruple der = _der.toQuadruple();
@@ -613,7 +628,7 @@ public class EC {
             return _operador + " " + _operando;
         }
 
-        public Quadruple toQuadruple() {
+        public Quadruple toQuadrupleImp() {
 
             Quadruple operando = _operando.toQuadruple();
             // quadruples.add(operando);
@@ -971,6 +986,19 @@ public class EC {
                 break;
         }
 
+        try  {
+            PrintWriter pw = new PrintWriter("intermedio.txt");
+
+            for (Quadruple q : reporte.codigoIntermedio) {
+                pw.println(q.toString());
+            }
+
+            reporte.lineas.add("Codigo intermedio creado.");
+            pw.close();
+        } catch (Exception ex) {
+            reporte.lineas.add("ERROR: No se pudo generar el codigo intermedio.");
+        }
+
         reporte.lineas = reporte.lineas.stream()
                                 .map(tabMapper)
                                 .toList();
@@ -1002,19 +1030,6 @@ public class EC {
 
         if (reporte.isError) {
             System.exit(-1);
-        }
-
-        try  {
-            PrintWriter pw = new PrintWriter("intermedio.txt");
-
-            for (Quadruple q : reporte.codigoIntermedio) {
-                pw.println(q.toString());
-            }
-
-            System.out.println("Codigo intermedio creado.");
-            pw.close();
-        } catch (Exception ex) {
-            System.out.println("ERROR: No se pudo generar el codigo intermedio.");
         }
 
         System.exit(0);
@@ -1632,6 +1647,7 @@ void asignacion(Ambito ambito, String nombre, int dimension) :
 {
     boolean error = nombre.isBlank();
     Expresion izq = ERROR;
+    Quadruple qIzq = null;
 
     if (!error && !ambito.tablaSimbolos.containsKey(nombre)) {
 
@@ -1644,6 +1660,7 @@ void asignacion(Ambito ambito, String nombre, int dimension) :
 
     if (!error) {
         izq = ambito.tablaSimbolos.get(nombre);
+        qIzq = izq.toQuadruple();
     }
 
     if (!error && !izq.esError() && izq.getTipoExpresion() == Expresion.EXP_FUNCION) {
@@ -1674,6 +1691,10 @@ void asignacion(Ambito ambito, String nombre, int dimension) :
                            + "\n\tSe esperaba tipo de dato \"" +  tipoDatoIzq.getNombre() + "\".");
 
         }
+
+        Quadruple qDer = der.toQuadruple();
+
+        new Quadruple("=", qDer.result, "", qIzq.result);
 
     }
 }
@@ -2104,31 +2125,27 @@ void declaracion(Ambito ambito) :
     )?
     <VARIABLE>
     {
+        String nombre = token.image;
 
-        if (ambito.tablaSimbolos.containsKey(token.image)){
+        if (ambito.tablaSimbolos.containsKey(nombre)){
 
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                            + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                            + ".\n\tEl símbolo \"" + nombre + "\" ya está declarado en este ámbito." +
                              "\n\tQuitar declaración doble.");
 
             error = true;
 
         } else {
-            String nombre = token.image;
-
             variable = new ExpresionVariable(nombre, tipo);
             ambito.tablaSimbolos.put(nombre, variable);
         }
+
 
     }
     ( asignacion(ambito, variable.getNombre(), 0) )?
     {
         if(!error) {
-            // quadruples.add(variable.toQuadruple());
-            new Quadruple("=", "t" + (tempCount - 1), "", variable.getNombre());
             variable.toQuadruple();
-
-
         }
     }
 
@@ -2140,13 +2157,16 @@ void leerDato(Ambito ambito) : { } {
         <INTERPRETAR>
         <VARIABLE>
         {
-            if (!ambito.tablaSimbolos.containsKey(token.image)){
+            String nombre = token.image;
+            if (!ambito.tablaSimbolos.containsKey(nombre)){
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                               + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito."
+                               + ".\n\tEl símbolo \"" + nombre + "\" no está declarado en este ámbito."
                                + "\n\tDeclare una variable para asignarle un valor.");
 
             }
+
+            new Quadruple("Itr", "@" + nombre, "", "");
         }
          <DELIMITADOR>
     } catch (ParseException ex) {
@@ -2158,10 +2178,18 @@ void leerDato(Ambito ambito) : { } {
     }
 }
 
-void imprimirDato(Ambito ambito):{}{
+void imprimirDato(Ambito ambito) :
+{
+    Expresion exp;
+}
+{
 
     try {
-        <ESCRIBIR> expresion(ambito) <DELIMITADOR>
+        <ESCRIBIR> exp = expresion(ambito) <DELIMITADOR>
+        {
+            Quadruple q = exp.toQuadruple();
+            new Quadruple("Esc", q.result, "", "");
+        }
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de escritura de dato");
@@ -2176,6 +2204,8 @@ void sentenciaSi(Ambito ambito) :
 {
     Ambito ambitoSi = new Ambito(ambito);
     Expresion condicion;
+    Quadruple qCond;
+    String etSi = "Si_" + siCount++;
 } {
 
     try {
@@ -2187,16 +2217,23 @@ void sentenciaSi(Ambito ambito) :
                                 + ".\n\tEl condicional \"Si\" solo funciona con el tipo de dato Booleano.");
 
             }
+            qCond = condicion.toQuadruple();
+            new Quadruple("IrSino", qCond.result, etSi, "");
+            qCond = null;
         }
         <ENTONCES> ( sentencias(ambitoSi) )*
         (
             <CONDICIONAL_SINO>
             {
+                qCond = new Quadruple(etSi + ":", "", "", "", 0);
                 ambitoSi = new Ambito(ambito);
             }
             ( sentencias(ambitoSi) )*
         )?
         <FIN_CONDICIONAL_SI>
+        {
+            if(qCond == null) new Quadruple(etSi + ":", "", "", "", 0);
+        }
     } catch (ParseException ex) {
 
         processError(ex, "sentencia condicional Si");
@@ -2212,10 +2249,14 @@ void sentenciaConforme(Ambito ambito) :
     boolean error = false;
 
     Ambito ambitoConforme;
-    HashSet<Object> casos = new HashSet<Object>();
+    HashSet<String> casos = new HashSet<String>();
 
     Expresion exp = ERROR;
     ExpresionConstante constante;
+
+    String conformeId = "Conforme_" + conCount++;
+    int casoCount = 1;
+    ArrayList<Quadruple> qCasos = new ArrayList<Quadruple>();
 } {
 
     try {
@@ -2269,12 +2310,18 @@ void sentenciaConforme(Ambito ambito) :
                 }
 
                 ambitoConforme = new Ambito(ambito);
+
             }
             <OPERADOR_DOS_PUNTOS>
             ( sentencias(ambitoConforme) )*
         )+
         ( <CASO_PREDETERMINADO> <OPERADOR_DOS_PUNTOS> ( sentencias(ambitoConforme) )* )?
         <FIN_CONFORME>
+        {
+            for (String caso : casos) {
+
+            }
+        }
     } catch (ParseException ex) {
 
         processError(ex, "sentencia condicional Conforme");
@@ -2291,6 +2338,8 @@ void sentenciaPara(Ambito ambito) :
 
     Token v;
     Expresion condicion;
+
+    String cicloId = "Ciclo_" + cicCount++;
 } {
 
     try {
