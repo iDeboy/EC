@@ -14,13 +14,59 @@ import java.lang.reflect.*;
 
 public class EC {
 
+    final ExpresionVariable ERROR = new ExpresionVariable("", TipoDato.INDEFINIDO).conError(true);
+
+    int tempCount = 1;
+
+    Expresion hacerBinaria(Token operador, List<Expresion> expresiones) {
+
+        Expresion izq;
+        Expresion der;
+
+        switch(expresiones.size()) {
+            case 1:
+                return expresiones.removeFirst();
+            case 2:
+                izq = expresiones.removeFirst();
+                der = expresiones.removeFirst();
+                return new ExpresionBinaria(operador, izq, der);
+            default:
+                izq = expresiones.removeFirst();
+                der = hacerBinaria(operador, expresiones);
+                return new ExpresionBinaria(operador, izq, der);
+        }
+
+    }
+
+    Expresion hacerBinaria(List<Token> ops, List<Expresion> expresiones) {
+
+        Expresion izq;
+        Expresion der;
+
+        switch(expresiones.size()) {
+            case 1:
+                return expresiones.removeFirst();
+            case 2:
+                izq = expresiones.removeFirst();
+                der = expresiones.removeFirst();
+                return new ExpresionBinaria(ops.removeFirst(), izq, der);
+            default:
+                Token operador = ops.removeFirst();
+                izq = expresiones.removeFirst();
+                der = hacerBinaria(ops, expresiones);
+                return new ExpresionBinaria(operador, izq, der);
+
+        }
+
+    }
+
     final Integer[] SENTENCES_BEGIN = new Integer[]
             {VARIABLE, ESTABLECER, INTERPRETAR, ESCRIBIR, INICIO_CONDICIONAL_SI, INICIO_CONDICIONAL_CONFORME,
             INICIO_CICLO_PARA, INICIO_CICLO_REPETIR, INICIO_CICLO_MIENTRAS};
 
     final ArrayList<String> tablaErrores = new ArrayList<String>();
 
-    final StringBuilder codigoIntermedio = new StringBuilder();
+    final ArrayList<Quadruple> quadruples = new ArrayList<Quadruple>();
 
     public class Ambito {
 
@@ -37,30 +83,54 @@ public class EC {
         }
     }
 
-    public class Tupla<A, B> {
-        private final A primero;
-        private final B segundo;
+    public class Quadruple {
 
-        public Tupla(A primero, B segundo) {
-            this.primero = primero;
-            this.segundo = segundo;
+        public String op;
+        public String arg1;
+        public String arg2;
+        public String result;
+        public int nivel;
+
+        public Quadruple(String op, String arg1, String arg2, int nivel) {
+            this.op = op;
+            this.arg1 = arg1;
+            this.arg2 = arg2;
+            this.nivel = nivel;
+            this.result = nivel == 0 ? "" : "t" + tempCount++;
+            quadruples.add(this);
         }
 
-        public A getPrimero() {
-            return primero;
+        public Quadruple(String op, String arg1, String arg2) {
+            this(op, arg1, arg2, 1);
         }
 
-        public B getSegundo() {
-            return segundo;
+        public Quadruple(String op, String arg1, String arg2, String result, int nivel) {
+            this.op = op;
+            this.arg1 = arg1 == null ? "" : arg1;
+            this.arg2 = arg2 == null ? "" : arg2;
+            this.result = result;
+            this.nivel = nivel;
+            quadruples.add(this);
         }
 
-        @Override
+        public Quadruple(String op, String arg1, String arg2, String result) {
+            this(op, arg1, arg2, result, 1);
+        }
+
         public String toString() {
-            return "(" + primero + ", " + segundo + ")";
+
+            ArrayList<String> elem = new ArrayList<String>(4);
+            elem.add(op);
+            if(!arg1.isBlank()) elem.add(arg1);
+            if(!arg2.isBlank()) elem.add(arg2);
+            if(!result.isBlank()) elem.add(result);
+
+            return "\t".repeat(nivel) + String.join(" ", elem);
         }
+
     }
 
-    public class TipoDato {
+    public static class TipoDato {
 
         public final static TipoDato INDEFINIDO = new TipoDato(-2, "Indefinido");
         public final static TipoDato VACIO = new TipoDato(-1, "Vacío");
@@ -70,7 +140,7 @@ public class EC {
         public final static TipoDato CARACTER = new TipoDato(ECConstants.CARACTER << 1, "Caracter");
         public final static TipoDato BOOLEANO = new TipoDato(ECConstants.BOOLEANO << 1, "Booleano");
 
-        public static desdeTipo(int tipoDato) {
+        public static TipoDato desdeTipo(int tipoDato) {
 
             switch (tipoDato) {
                 case -1:
@@ -83,7 +153,7 @@ public class EC {
                     return CADENA;
                 case ECConstants.CARACTER << 1:
                     return CARACTER;
-                case ECConstants.CARACTER << 1:
+                case ECConstants.BOOLEANO << 1:
                     return BOOLEANO;
                 default:
                     return INDEFINIDO;
@@ -99,10 +169,15 @@ public class EC {
             _hash = hash;
             _nombre = nombre;
             _dimension = dimension;
+            _interno = interno;
         }
 
         private TipoDato(int hash, String nombre) {
-            this(hash, nombre, this, 0);
+
+            _hash = hash;
+            _nombre = nombre;
+            _dimension = 0;
+            _interno = this;
         }
 
         public String getNombre() {
@@ -133,6 +208,17 @@ public class EC {
             return _interno;
         }
 
+        public TipoDato getTipoInterno(int dimension){
+
+            TipoDato interno = this;
+
+            for (int i = 0; i < dimension; ++i) {
+                interno = interno._interno;
+            }
+
+            return interno;
+        }
+
         public TipoDato getTipoArreglo(int dimension){
 
             if (this.equals(INDEFINIDO) || this.equals(VACIO)) return this;
@@ -153,28 +239,30 @@ public class EC {
 
             switch(operador){
                 case ECConstants.SUMA:
-                    return tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE
-                    || tipoDato == TIPO_CADENA || tipoDato == TIPO_CARACTER;
+                    return tipoDato == ENTERO._hash || tipoDato == FLOTANTE._hash
+                    || tipoDato == CADENA._hash || tipoDato == CARACTER._hash;
+
                 case ECConstants.RESTA:
                 case ECConstants.MULTIPLICACION:
                 case ECConstants.DIVISION:
                 case ECConstants.MODULO:
-                    return tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE;
+                    return tipoDato == ENTERO._hash || tipoDato == FLOTANTE._hash;
 
                 case ECConstants.LOGICO_NOT:
                 case ECConstants.LOGICO_OR:
                 case ECConstants.LOGICO_AND:
-                    return tipoDato == TIPO_BOOLEANO;
+                    return tipoDato == BOOLEANO._hash;
 
                 case ECConstants.OPERADOR_IGUAL:
                 case ECConstants.OPERADOR_DIFERENTE:
-                    eq = tipoDato == TIPO_CADENA || tipoDato == TIPO_BOOLEANO;
+                    eq = tipoDato == CADENA._hash || tipoDato == BOOLEANO._hash;
+
                 case ECConstants.OPERADOR_MAYOR:
                 case ECConstants.OPERADOR_MAYOR_IGUAL:
                 case ECConstants.OPERADOR_MENOR:
                 case ECConstants.OPERADOR_MENOR_IGUAL:
-                    return eq || tipoDato == TIPO_ENTERO || tipoDato == TIPO_FLOTANTE
-                        || tipoDato == TIPO_CARACTER;
+                    return eq || tipoDato == ENTERO._hash || tipoDato == FLOTANTE._hash
+                        || tipoDato == CARACTER._hash;
             }
 
             return false;
@@ -184,10 +272,12 @@ public class EC {
 
     public abstract class Expresion implements Cloneable {
 
-        private boolean _error;
+        protected boolean _error;
 
         public abstract int getTipoExpresion();
         public abstract TipoDato getTipo();
+        public abstract String toString();
+        public abstract Quadruple toQuadruple();
 
         public final static int EXP_CONSANTE = 1;
         public final static int EXP_VARIABLE = 2;
@@ -215,56 +305,23 @@ public class EC {
             return _error;
         }
 
-        public Expresion conError(boolean error) {
+        public <TExpresion extends Expresion> TExpresion conError(boolean error) {
 
-            if(_error == error) return this;
+            if(_error == error) return (TExpresion)this;
 
-            Expresion copy = (Expresion)clone();
-            copy.setError(error);
+            try{
+                Expresion copy = (Expresion)clone();
+                copy.setError(error);
+                return (TExpresion)copy;
+            } catch (CloneNotSupportedException ex) {
+                this._error = error;
+                return (TExpresion)this;
+            }
 
-            return copy;
         }
 
         private void setError(boolean error) {
             _error = error;
-        }
-
-
-        public static Expresion hacerBinaria(int operador, List<Expresion> expresiones) {
-
-            switch(expresiones.size()) {
-                case 1:
-                    return expresiones.removeFirst();
-                case 2:
-                    Expresion izq = expresiones.removeFirst();
-                    Expresion der = expresiones.removeFirst();
-                    return new ExpresionBinaria(operador, izq, der);
-                default:
-                    Expresion izq = expresiones.removeFirst();
-                    Expresion der = hacerBinaria(operador, expresiones);
-                    return new ExpresionBinaria(operador, izq, der);
-
-            }
-
-        }
-
-        public static Expresion hacerBinaria(List<Integer> ops, List<Expresion> expresiones) {
-
-            switch(expresiones.size()) {
-                case 1:
-                    return expresiones.removeFirst();
-                case 2:
-                    Expresion izq = expresiones.removeFirst();
-                    Expresion der = expresiones.removeFirst();
-                    return new ExpresionBinaria(ops.removeFirst(), izq, der);
-                default:
-                    Integer operador = ops.removeFirst();
-                    Expresion izq = expresiones.removeFirst();
-                    Expresion der = hacerBinaria(ops, expresiones);
-                    return new ExpresionBinaria(operador, izq, der);
-
-            }
-
         }
 
     }
@@ -279,7 +336,7 @@ public class EC {
             _tipo = tipo;
         }
 
-        public String getNombre(){
+        public String getNombre() {
             return _nombre;
         }
 
@@ -291,16 +348,22 @@ public class EC {
             return _tipo;
         }
 
+        public String toString() {
+            return _nombre;
+        }
+
+        public Quadruple toQuadruple() {
+            return new Quadruple("=", _nombre, "");
+        }
+
     }
 
     public class ExpresionConstante extends Expresion {
 
-        public final static Expresion ERROR = new ExpresionConstante(null, 0).conError(true);
-
-        private Object _valor;
+        private String _valor;
         private TipoDato _tipo;
 
-        public ExpresionConstante(Object valor, TipoDato tipo) {
+        public ExpresionConstante(String valor, TipoDato tipo) {
             _valor = valor;
             _tipo = tipo;
         }
@@ -313,26 +376,40 @@ public class EC {
             return _tipo;
         }
 
-        public Object getValor(){
+        public String getValor() {
             return _valor;
         }
+
+        public String toString() {
+            return _valor.toString();
+        }
+
+        public Quadruple toQuadruple() {
+            return new Quadruple("=", _valor, "");
+        }
+
     }
 
     public class ExpresionIndice extends Expresion {
 
-        private Expresion _arreglo;
+        private ExpresionVariable _arreglo;
         private List<Expresion> _indices;
 
         public ExpresionIndice(List<Expresion> indices){
             _indices = Collections.unmodifiableList(indices);
         }
 
-        public Expresion getArreglo() {
+        public ExpresionVariable getArreglo() {
             return _arreglo;
         }
 
         public void setArreglo(Expresion arreglo) {
-            _arreglo = arreglo;
+
+            if (arreglo instanceof ExpresionVariable)
+                _arreglo = (ExpresionVariable)arreglo;
+            else
+                _arreglo = ERROR;
+
         }
 
         public int getTipoExpresion() {
@@ -340,7 +417,7 @@ public class EC {
         }
 
         public TipoDato getTipo() {
-            return _arreglo.getTipo().getTipoInterno();
+            return _arreglo.getTipo().getTipoInterno(_indices.size());
         }
 
         public List<Expresion> getIndices() {
@@ -349,6 +426,44 @@ public class EC {
 
         public int getDimension() {
             return _indices.size();
+        }
+
+        public Quadruple toQuadruple() {
+
+            StringBuilder sb = new StringBuilder();
+
+            Quadruple arreglo = _arreglo.toQuadruple();
+
+            sb.append(arreglo.result);
+            // quadruples.add(arreglo);
+
+            for (Expresion indice : _indices) {
+
+                Quadruple q = indice.toQuadruple();
+                // quadruples.add(q);
+
+                sb.append('[')
+                  .append(q.result)
+                  .append(']');
+
+            }
+
+            return new Quadruple("=", sb.toString(), "");
+        }
+
+        public String toString() {
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.append(_arreglo.getNombre());
+
+            for (Expresion _indice : _indices) {
+                sb.append('[')
+                  .append(_indices)
+                  .append(']');
+            }
+
+            return sb.toString();
         }
 
     }
@@ -396,6 +511,14 @@ public class EC {
             return _nombre;
         }
 
+        public String toString() {
+            return _nombre;
+        }
+
+        public Quadruple toQuadruple() {
+            return new Quadruple("Ir", _nombre, "");
+        }
+
         private final Function<Expresion, TipoDato> mapper = new Function<Expresion, TipoDato>() {
             @Override
             public TipoDato apply(Expresion e){
@@ -407,20 +530,20 @@ public class EC {
 
     public class ExpresionBinaria extends Expresion {
 
-        private int _tipoExpresion;
+        private Token _operador;
         private Expresion _izq;
         private Expresion _der;
         private TipoDato _tipo;
 
-        public ExpresionBinaria(int tipoExpresion, Expresion izq, Expresion der, TipoDato tipo){
-            _tipoExpresion = tipoExpresion;
+        public ExpresionBinaria(Token operador, Expresion izq, Expresion der, TipoDato tipo) {
+            _operador = operador;
             _izq = izq;
             _der = der;
             _tipo = tipo;
         }
 
-        public ExpresionBinaria(int tipoExpresion, Expresion izq, Expresion der){
-            this(tipoExpresion, izq, der, izq.getTipo());
+        public ExpresionBinaria(Token operador, Expresion izq, Expresion der){
+            this(operador, izq, der, izq.getTipo());
         }
 
         public Expresion getIzquierdo(){
@@ -432,29 +555,45 @@ public class EC {
         }
 
         public int getTipoExpresion() {
-            return _tipoExpresion;
+            return _operador.kind;
         }
 
         public TipoDato getTipo() {
             return _tipo;
         }
 
+        public String toString() {
+
+            return _operador + " " + _izq + " " + _der;
+        }
+
+        public Quadruple toQuadruple() {
+
+            Quadruple izq = _izq.toQuadruple();
+            Quadruple der = _der.toQuadruple();
+
+            // quadruples.add(izq);
+            // quadruples.add(der);
+
+            return new Quadruple(_operador.image, izq.result, der.result);
+        }
+
     }
 
     public class ExpresionUnaria extends Expresion {
 
-        private int _tipoExpresion;
+        private Token _operador;
         private Expresion _operando;
         private TipoDato _tipo;
 
-        public ExpresionBinaria(int tipoExpresion, Expresion operando, TipoDato tipo){
-            _tipoExpresion = tipoExpresion;
+        public ExpresionUnaria(Token operador, Expresion operando, TipoDato tipo){
+            _operador = operador;
             _operando = operando;
             _tipo = tipo;
         }
 
-        public ExpresionBinaria(int tipoExpresion, Expresion operando){
-            this(tipoExpresion, operando, operando.getTipo());
+        public ExpresionUnaria(Token operador, Expresion operando){
+            this(operador, operando, operando.getTipo());
         }
 
         public Expresion getOperando(){
@@ -462,11 +601,24 @@ public class EC {
         }
 
         public int getTipoExpresion() {
-            return _tipoExpresion;
+            return _operador.kind;
         }
 
         public TipoDato getTipo() {
             return _tipo;
+        }
+
+        public String toString() {
+
+            return _operador + " " + _operando;
+        }
+
+        public Quadruple toQuadruple() {
+
+            Quadruple operando = _operando.toQuadruple();
+            // quadruples.add(operando);
+
+            return new Quadruple(_operador.image, operando.result, "");
         }
 
     }
@@ -584,7 +736,7 @@ public class EC {
 
         public List<String> lineas = new ArrayList<String>();
 
-        public String codigoIntermedio = "";
+        public ArrayList<Quadruple> codigoIntermedio = new ArrayList<Quadruple>();
 
     }
 
@@ -739,7 +891,7 @@ public class EC {
 
             var errores = ec.tablaErrores;
 
-            reporte.codigoIntermedio = ec.codigoIntermedio.toString();
+            reporte.codigoIntermedio = ec.quadruples;
 
             reporte.lineas.add("Se pasó la prueba semántica con éxito.");
             reporte.lineas.add("No se encontraron errores.");
@@ -853,10 +1005,14 @@ public class EC {
         }
 
         try  {
-            FileOutputStream fos = new FileOutputStream("intermedio.txt", false);
-            fos.write(reporte.codigoIntermedio.getBytes());
+            PrintWriter pw = new PrintWriter("intermedio.txt");
+
+            for (Quadruple q : reporte.codigoIntermedio) {
+                pw.println(q.toString());
+            }
+
             System.out.println("Codigo intermedio creado.");
-            fos.close();
+            pw.close();
         } catch (Exception ex) {
             System.out.println("ERROR: No se pudo generar el codigo intermedio.");
         }
@@ -978,8 +1134,6 @@ public class EC {
         }
 
     }
-
-}}
 
 }
 
@@ -1178,7 +1332,7 @@ TOKEN : {
 List<Expresion> argumentos(Ambito ambito) :
 {
     Expresion exp;
-    List<Expresion> argumentos = new ArrayList<Integer>();
+    List<Expresion> argumentos = new ArrayList<Expresion>();
 }
 {
     exp = expresion(ambito)
@@ -1197,60 +1351,56 @@ List<Expresion> argumentos(Ambito ambito) :
     }
 }
 
-ArrayList<Expresion> declaracionArgumentos(Ambito ambito) :
+List<Expresion> declaracionArgumentos(Ambito ambito) :
 {
-    Expresion argumento = new Expresion();
-    ArrayList<Expresion> argumentos = new ArrayList<Expresion>();
+
+    List<Expresion> argumentos = new ArrayList<Expresion>();
+
+    ExpresionVariable argumento;
+    TipoDato tipoDato;
+    boolean error = false;
 } {
-    argumento.tipoDato = tiposDato()
+    tipoDato = tiposDato()
     <VARIABLE>
     {
+        String nombre = token.image;
+        argumento = new ExpresionVariable(nombre, tipoDato);
 
-        if(ambito.tablaSimbolos.containsKey(token.image)){
+        if (ambito.tablaSimbolos.containsKey(nombre)) {
 
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                           + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                           + ".\n\tEl símbolo \"" + nombre + "\" ya está declarado en este ámbito." +
                              "\n\tQuitar declaración doble.");
 
-            argumento.isError = true;
+            error = true;
+
+        } else {
+            ambito.tablaSimbolos.put(nombre, argumento);
+            argumentos.add(argumento);
         }
-
-        argumento.token = token;
-        argumento.nombre = token.image;
-
-        if(!argumento.tieneErrores()){
-            ambito.tablaSimbolos.put(argumento.nombre, argumento);
-        }
-
-        argumentos.add(argumento);
 
     }
     (
         <COMA>
-        {
-            argumento = new Expresion();
-        }
-        argumento.tipoDato = tiposDato()
+        tipoDato = tiposDato()
         <VARIABLE>
         {
 
-            if(ambito.tablaSimbolos.containsKey(token.image)){
+            nombre = token.image;
+            argumento = new ExpresionVariable(nombre, tipoDato);
+
+            if (ambito.tablaSimbolos.containsKey(nombre)) {
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                               + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                               + ".\n\tEl símbolo \"" + nombre + "\" ya está declarado en este ámbito." +
                                  "\n\tQuitar declaración doble.");
 
-                argumento.isError = true;
+                error = true;
+            } else {
+                ambito.tablaSimbolos.put(nombre, argumento);
+                argumentos.add(argumento);
             }
 
-            argumento.token = token;
-            argumento.nombre = token.image;
-
-            if(!argumento.tieneErrores()){
-                ambito.tablaSimbolos.put(argumento.nombre, argumento);
-            }
-
-            argumentos.add(argumento);
         }
     )*
     {
@@ -1260,82 +1410,85 @@ ArrayList<Expresion> declaracionArgumentos(Ambito ambito) :
 
 void declaracionFuncion(Ambito ambito) :
 {
-    int tipoDato;
-    Expresion funcion = new Expresion();
-    funcion.tipoExpresion = EXP_FUNCION;
-    funcion.tipoDato = TIPO_VACIO;
-
     Ambito ambitoFuncion = new Ambito();
+
+    ExpresionFuncion funcion;
+
+    TipoDato tipoDato = TipoDato.VACIO;
+    String nombre;
+    List<Expresion> argumentos = new ArrayList<Expresion>();
+
+    Expresion ret;
+
+    boolean error = false;
 }{
-    <FUNCION> ( funcion.tipoDato = tiposDato() )?
+    <FUNCION> ( tipoDato = tiposDato() )?
     <VARIABLE>
     {
-
-        if (ambito.tablaSimbolos.containsKey(token.image)) {
+        nombre = token.image;
+        if (ambito.tablaSimbolos.containsKey(nombre)) {
 
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                           + ".\n\tEl símbolo \"" + token.image + "\" ya está declarado en este ámbito." +
+                           + ".\n\tEl símbolo \"" + nombre + "\" ya está declarado en este ámbito." +
                              "\n\tQuitar declaración doble.");
 
-            funcion.isError = true;
+            error = true;
         }
 
-        funcion.nombre = token.image;
-        funcion.token = token;
-        ambitoFuncion.tablaSimbolos.put(funcion.nombre, funcion);
-
-        if (!funcion.tieneErrores()) {
-            ambito.tablaSimbolos.put(funcion.nombre, funcion);
-        }
+        new Quadruple(nombre + ":", "", "", 0);
 
     }
-     <PAREN_ABIERTO> ( funcion.expresiones = declaracionArgumentos(ambitoFuncion) )? <PAREN_CERRADO>
+     <PAREN_ABIERTO> ( argumentos = declaracionArgumentos(ambitoFuncion) )? <PAREN_CERRADO>
+     {
+        funcion = new ExpresionFuncion(nombre, tipoDato, argumentos);
+        ambitoFuncion.tablaSimbolos.put(nombre, funcion);
+
+        for (Expresion arg : argumentos) {
+            arg.toQuadruple();
+        }
+     }
     ( sentencias(ambitoFuncion) )*
     (
         <RETORNAR>
-        tipoDato = expresion(ambitoFuncion)
+        ret = expresion(ambitoFuncion)
         <DELIMITADOR>
         {
 
-            if (!funcion.tieneErrores() && funcion.tipoDato == TIPO_VACIO) {
+            if (tipoDato.equals(TipoDato.VACIO)) {
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar ningun valor."
+                               + ".\n\tLa función \"" + nombre + "\" no puede retornar ningun valor."
                                + "\n\tQuitar retornar.");
 
-                funcion.isError = true;
-
-            }
-
-            if (!funcion.tieneErrores() && funcion.tipoDato != tipoDato) {
+                error = true;
+            } else if (!tipoDato.equals(ret.getTipo())) {
 
                 tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                               + ".\n\tLa función \"" + funcion.nombre + "\" no puede retornar un tipo de dato \""
-                               +  Expresion.getTipoDatoNombre(tipoDato) + "\"."
-                               + "\n\tRetornar tipo de dato \"" + Expresion.getTipoDatoNombre(funcion.tipoDato) + "\"." );
+                               + ".\n\tLa función \"" + nombre + "\" no puede retornar un tipo de dato \""
+                               +  ret.getTipo().getNombre() + "\"."
+                               + "\n\tRetornar tipo de dato \"" + tipoDato.getNombre() + "\"." );
 
-                funcion.isError = true;
+                error = true;
 
             }
+
+            Quadruple q = ret.toQuadruple();
+            new Quadruple("ret", q.result, "", "");
 
         }
     )?
     <FIN_FUNCION> <VARIABLE>
     {
-        if(!funcion.nombre.equals(token.image)){
+        if (!nombre.equals(token.image)) {
 
             tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                            + ".\n\tLa función debe de terminar con el mismo nombre."
                            + "\n\tColocar el nombre de la función después del FinFuncion.");
 
-            if (!funcion.tieneErrores()) {
-                ambito.tablaSimbolos.remove(funcion.nombre);
-            }
-
-            funcion.isError = true;
-
-
+            error = true;
         }
+
+        ambito.tablaSimbolos.put(nombre, funcion.conError(error));
     }
 }
 
@@ -1347,11 +1500,13 @@ void programa():
     try {
         // Nuevo
         ( declaracionFuncion(ambitoPrincipal) )*
-        <INICIO> ( sentencias(ambitoPrincipal) )+ <FIN>
+        <INICIO>
+        {
+            new Quadruple("Inicio:", "", "", 0);
+        }
+        ( sentencias(ambitoPrincipal) )+ <FIN>
         <EOF>
 
-        // Eliminado
-        // <INICIO> ( sentencias() )+ <FIN><EOF>
     } catch (ParseException ex){
 
         processError(ex, "programa principal");
@@ -1360,7 +1515,8 @@ void programa():
     }
 }
 
-void sentencias(Ambito ambito):{ }{
+void sentencias(Ambito ambito) :
+{ }{
 
     sentenciaDeclaracion(ambito) |
     sentenciaAsignacion(ambito) |
@@ -1376,13 +1532,28 @@ void sentencias(Ambito ambito):{ }{
 
 void sentenciaAsignacion(Ambito ambito) :
 {
-    Tupla<Integer, Token> tupla;
     Expresion exp;
+    String nombre = "";
+    int dimension = 0;
 } {
 
     try {
         exp = llamadas(ambito)
-        ( asignacion(ambito, tupla) )?
+        {
+            if (exp instanceof ExpresionIndice) {
+                ExpresionIndice ei = (ExpresionIndice)exp;
+                nombre = ei.getArreglo().getNombre();
+                dimension = ei.getDimension();
+            } else if (exp instanceof ExpresionFuncion) {
+                ExpresionFuncion ef = (ExpresionFuncion)exp;
+                nombre = ef.getNombre();
+            } else if (exp instanceof ExpresionVariable) {
+                ExpresionVariable ev = (ExpresionVariable)exp;
+                nombre = ev.getNombre();
+            }
+
+        }
+        ( asignacion(ambito, nombre, dimension) )?
         <DELIMITADOR>
     } catch (ParseException ex) {
 
@@ -1419,95 +1590,88 @@ TipoDato tiposDato() : { } {
     <BOOLEANO> ) { return TipoDato.desdeTipo(token.kind << 1); }
 }
 
-Expresion constantes(): { }{
+ExpresionConstante constantes() :
+{
+    int fin;
+    String str;
+}
+{
 
     <NUMERO_ENTERO>
     {
-        return new ExpresionConstante(Integer.parseInt(token.image), TipoDato.ENTERO);
+        return new ExpresionConstante(token.image, TipoDato.ENTERO);
     }   // 2
     |
     <NUMERO_DECIMAL>
     {
-        return new ExpresionConstante(Double.parseDouble(token.image), TipoDato.FLOTANTE);
+        return new ExpresionConstante(token.image, TipoDato.FLOTANTE);
     }   // 2.3 0.0
     |
     <CADENA_TEXTO>
     {
-        int fin = token.image.length() - 1;
-        String str = token.image;
-        return new ExpresionConstante(str.substring(1, fin), TipoDato.CADENA);
+        return new ExpresionConstante(token.image, TipoDato.CADENA);
     }   // "Hola"
     |
     <CARACTER_TEXTO>
     {
-        int fin = token.image.length() - 1;
-        String str = token.image;
-
-        return new ExpresionConstante(str.substring(1, fin).charAt(0), TipoDato.CARACTER);
+        return new ExpresionConstante(token.image, TipoDato.CARACTER);
     }  // 'c'
     |
     <BOOLEANO_FALSO>
     {
-        String str = token.image;
-        return new ExpresionConstante(!str.equalsIgnoreCase("falso"), TipoDato.BOOLEANO);
+        return new ExpresionConstante(token.image, TipoDato.BOOLEANO);
     } // Falso
     |
     <BOOLEANO_VERDADERO>
     {
-        String str = token.image;
-        return new ExpresionConstante(str.equalsIgnoreCase("verdadero"), TipoDato.BOOLEANO);
+        return new ExpresionConstante(token.image, TipoDato.BOOLEANO);
     }   // Verdadero
 }
 
-void asignacion(Ambito ambito, Expresion exp) :
+void asignacion(Ambito ambito, String nombre, int dimension) :
 {
-    boolean error = exp.esError();
-    String nombre;
-
-    if (exp instanceof ExpresionVariable) {
-        ExpresionVariable ev = (ExpresionVariable)exp;
-        nombre = ev.getNombre();
-    }
+    boolean error = nombre.isBlank();
+    Expresion izq = ERROR;
 
     if (!error && !ambito.tablaSimbolos.containsKey(nombre)) {
 
         tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                        + ".\n\tEl símbolo \"" + token.image + "\" no está declarado en este ámbito." +
+                        + ".\n\tEl símbolo \"" + nombre + "\" no está declarado en este ámbito." +
                          "\n\tDeclarar el símbolo.");
 
         error = true;
     }
 
-    Expresion exp = ambito.tablaSimbolos.get(tk.image);
+    if (!error) {
+        izq = ambito.tablaSimbolos.get(nombre);
+    }
 
-    if(!error && !exp.tieneErrores() && exp.tipoExpresion == EXP_FUNCION) {
+    if (!error && !izq.esError() && izq.getTipoExpresion() == Expresion.EXP_FUNCION) {
 
-        tablaErrores.add("Error semántico, Línea " + tk.beginLine + ", columna " + tk.beginColumn
-                        + ".\n\t\""+ exp.nombre +"\" no es un símbolo asignable." +
+        tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                        + ".\n\t\""+ nombre +"\" no es un símbolo asignable." +
                           "\n\tNo se le puede asignar un valor a una llamada de función.");
 
         error = true;
     }
 
-    int tipoDato;
+    Expresion der;
+    Token op;
 } {
-    <ASIGNACION> tipoDato = expresion(ambito)
+    op = <ASIGNACION> der = expresion(ambito)
     {
-        if(tipoDato == 0) {
+        if(der.esError()) {
             error = true;
         }
 
-        int expTipoDato = t.getPrimero();
-        if(expTipoDato == -2){
-            expTipoDato = exp.tipoDato;
-        }
+        TipoDato tipoDatoIzq = izq.getTipo().getTipoInterno(dimension);
+        TipoDato tipoDatoDer = der.getTipo();
 
-        if(!error && !exp.tieneErrores() && expTipoDato != tipoDato){
-            Token token = exp.token;
-            tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                           + ".\n\tNo se puede asignar un tipo de dato \"" + Expresion.getTipoDatoNombre(tipoDato)
-                           + "\" a un tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\"."
-                           + "\n\tSe esperaba tipo de dato \"" +  Expresion.getTipoDatoNombre(exp.tipoDato) + "\".");
+        if (!tipoDatoIzq.equals(tipoDatoDer)) {
+            tablaErrores.add("Error semántico, Línea " + op.beginLine + ", columna " + op.beginColumn
+                           + ".\n\tNo se puede asignar un tipo de dato \"" + tipoDatoDer.getNombre()
+                           + "\" a un tipo de dato \"" +  tipoDatoIzq.getNombre() + "\"."
+                           + "\n\tSe esperaba tipo de dato \"" +  tipoDatoIzq.getNombre() + "\".");
 
         }
 
@@ -1519,7 +1683,12 @@ Expresion expresion(Ambito ambito):
     Expresion expresion;
 }
 {
-    expresion = logicoOr(ambito) { return expresion; }
+    expresion = logicoOr(ambito) {
+
+        // quadruples.add(expresion.toQuadruple());
+        expresion.toQuadruple();
+        return expresion;
+    }
 }
 
 Expresion logicoOr(Ambito ambito) :
@@ -1529,7 +1698,8 @@ Expresion logicoOr(Ambito ambito) :
 
     List<Expresion> exps = new ArrayList<Expresion>();
 
-    Token op;
+    Token op = null;
+    int operador = 0;
     boolean error = false;
 }{
     izq = logicoAnd(ambito)
@@ -1556,11 +1726,12 @@ Expresion logicoOr(Ambito ambito) :
             }
 
             exps.add(der);
+            // operador = op.kind;
 
         }
     )*
     {
-        return Expresion.hacerBinaria(op.kind, exps).conError(error);
+        return hacerBinaria(op, exps).conError(error);
     }
 }
 
@@ -1571,7 +1742,8 @@ Expresion logicoAnd(Ambito ambito) :
 
     List<Expresion> exps = new ArrayList<Expresion>();
 
-    Token op;
+    Token op = null;
+    int operador = 0;
     boolean error;
 }{
     izq = comparacion(ambito)
@@ -1596,21 +1768,23 @@ Expresion logicoAnd(Ambito ambito) :
             }
 
             exps.add(der);
+            // operador = op.kind;
 
        }
     )*
     {
-        return Expresion.hacerBinaria(op.kind, exps).conError(error);
+        return hacerBinaria(op, exps).conError(error);
     }
 }
 
 Expresion comparacion(Ambito ambito) :
 {
     Expresion izq;
-    Expresion der;
+    Expresion der = null;
 
-    Token op;
+    Token op = null;
 
+    int operador = 0;
     boolean error;
     boolean sw = false;
 }
@@ -1636,13 +1810,12 @@ Expresion comparacion(Ambito ambito) :
             }
 
             sw = true;
-
        }
     )?
     {
         if (!sw) return izq.conError(error);
 
-        return new ExpresionBinaria(op.kind, izq, der, TipoDato.BOOLEANO).conError(error);
+        return new ExpresionBinaria(op, izq, der, TipoDato.BOOLEANO).conError(error);
     }
 }
 
@@ -1652,7 +1825,7 @@ Expresion operando(Ambito ambito) :
     Expresion der;
 
 
-    List<Integer> ops = new ArrayList<Integer>();
+    List<Token> ops = new ArrayList<Token>();
     List<Expresion> exps = new ArrayList<Expresion>();
 
     Token op;
@@ -1668,7 +1841,7 @@ Expresion operando(Ambito ambito) :
         {
             op = token;
 
-            ops.add(op.kind);
+            ops.add(op);
         }
         der = termino(ambito)
         {
@@ -1689,7 +1862,7 @@ Expresion operando(Ambito ambito) :
        }
     )*
     {
-        return Expresion.hacerBinaria(ops, exps).conError(error);
+        return hacerBinaria(ops, exps).conError(error);
     }
 }
 
@@ -1698,7 +1871,7 @@ Expresion termino(Ambito ambito):
     Expresion izq;
     Expresion der;
 
-    List<Integer> ops = new ArrayList<Integer>();
+    List<Token> ops = new ArrayList<Token>();
     List<Expresion> exps = new ArrayList<Expresion>();
 
     Token op;
@@ -1715,7 +1888,7 @@ Expresion termino(Ambito ambito):
        {
             op = token;
 
-            ops.add(op.kind);
+            ops.add(op);
        }
        der = factor(ambito)
        {
@@ -1737,7 +1910,7 @@ Expresion termino(Ambito ambito):
        }
     )*
     {
-        return Expresion.hacerBinaria(ops, exps).conError(error);
+        return hacerBinaria(ops, exps).conError(error);
     }
 }
 
@@ -1745,6 +1918,8 @@ Expresion factor(Ambito ambito) :
 {
     Expresion exp;
     Token op;
+
+    Expresion unario;
 } {
 
     exp = llamadas(ambito) { return exp; }
@@ -1758,7 +1933,7 @@ Expresion factor(Ambito ambito) :
     |
     <LOGICO_NOT> { op = token; } exp = factor(ambito)
     {
-        Expresion unario = new ExpresionUnaria(op.kind, exp, TipoDato.BOOLEANO);
+        unario = new ExpresionUnaria(op, exp, TipoDato.BOOLEANO);
 
         if (!exp.getTipo().puedeUtilizar(op.kind)) {
 
@@ -1775,7 +1950,7 @@ Expresion factor(Ambito ambito) :
     (<SUMA> | <RESTA> ) { op = token; } exp = factor(ambito)
     {
 
-        Expresion unario = new ExpresionUnaria(op.kind, exp);
+        unario = new ExpresionUnaria(op, exp);
 
         if (!exp.getTipo().puedeUtilizar(op.kind)) {
 
@@ -1793,14 +1968,13 @@ Expresion factor(Ambito ambito) :
 
 Expresion llamadas(Ambito ambito) :
 {
-    Expresion exp = null;
+    Expresion exp = ERROR;
     boolean error = false;
 
     Token v;
 } {
     v = <VARIABLE>
     {
-
         if (!ambito.tablaSimbolos.containsKey(v.image)) {
 
             tablaErrores.add("Error semántico, Línea " + v.beginLine + ", columna " + v.beginColumn
@@ -1823,7 +1997,7 @@ Expresion llamadas(Ambito ambito) :
             // Comprobar que sean de la misma dimensión
             if (!error) {
 
-                if (!exp.getTipo().esArreglo()) {
+                if (!(exp instanceof ExpresionVariable) && !exp.getTipo().esArreglo()) {
 
                     tablaErrores.add("Error semántico, Línea " + v.beginLine + ", columna " + v.beginColumn
                                    + ".\n\tEl símbolo \"" + v.image + "\" no es un arreglo.");
@@ -1876,7 +2050,7 @@ Expresion llamadas(Ambito ambito) :
         }
     )?
     {
-        return error ? ExpresionContante.ERROR : exp;
+        return exp.conError(error);
     }
 }
 
@@ -1885,7 +2059,7 @@ ExpresionIndice indiceArreglo(Ambito ambito) :
     Expresion exp;
 
     List<Expresion> exps = new ArrayList<Expresion>();
-    boolean error = arreglo == null;
+    boolean error = false;
 }{
     (
         <INDICE_ABIERTO>
@@ -1916,7 +2090,7 @@ void declaracion(Ambito ambito) :
     TipoDato tipo;
     boolean error = false;
 
-    ExpresionVariable variable;
+    ExpresionVariable variable = ERROR;
 } {
     <ESTABLECER> tipo = tiposDato()
     (
@@ -1947,7 +2121,16 @@ void declaracion(Ambito ambito) :
         }
 
     }
-    ( asignacion(ambito, variable) )?
+    ( asignacion(ambito, variable.getNombre(), 0) )?
+    {
+        if(!error) {
+            // quadruples.add(variable.toQuadruple());
+            new Quadruple("=", "t" + (tempCount - 1), "", variable.getNombre());
+            variable.toQuadruple();
+
+
+        }
+    }
 
 }
 
@@ -1992,10 +2175,20 @@ void imprimirDato(Ambito ambito):{}{
 void sentenciaSi(Ambito ambito) :
 {
     Ambito ambitoSi = new Ambito(ambito);
+    Expresion condicion;
 } {
 
     try {
-        <INICIO_CONDICIONAL_SI> expresion(ambito) <ENTONCES> ( sentencias(ambitoSi) )*
+        <INICIO_CONDICIONAL_SI> condicion = expresion(ambito)
+        {
+            if (!condicion.getTipo().equals(TipoDato.BOOLEANO)) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                + ".\n\tEl condicional \"Si\" solo funciona con el tipo de dato Booleano.");
+
+            }
+        }
+        <ENTONCES> ( sentencias(ambitoSi) )*
         (
             <CONDICIONAL_SINO>
             {
@@ -2017,10 +2210,12 @@ void sentenciaSi(Ambito ambito) :
 void sentenciaConforme(Ambito ambito) :
 {
     boolean error = false;
-    int tipoDatoCaso;
-    Expresion exp = null;
+
     Ambito ambitoConforme;
-    HashSet<String> casos = new HashSet<String>();
+    HashSet<Object> casos = new HashSet<Object>();
+
+    Expresion exp = ERROR;
+    ExpresionConstante constante;
 } {
 
     try {
@@ -2035,12 +2230,11 @@ void sentenciaConforme(Ambito ambito) :
 
                 error = true;
 
-            }
+            } else {
 
-            if (!error) {
                 exp = ambito.tablaSimbolos.get(token.image);
 
-                if (exp.tipoExpresion != EXP_VARIABLE) {
+                if (exp.getTipoExpresion() != Expresion.EXP_VARIABLE) {
 
                     tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                                    + ".\n\tLa sentencia \"Segun\" solo funciona con variables.");
@@ -2048,30 +2242,30 @@ void sentenciaConforme(Ambito ambito) :
                     error = true;
 
                 }
-
             }
 
         }
         <HACER>
         (
             <CASO>
-            tipoDatoCaso = constantes()
+            constante = constantes()
             {
 
-                if (!error && exp.tipoDato != tipoDatoCaso){
+                if (!error && !exp.getTipo().equals(constante.getTipo())){
 
                     tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
                                    + ".\n\tTipo de dato del caso erróneo."
-                                   + "\n\tEl caso debe tener un valor constante \"" + Expresion.getTipoDatoNombre(exp.tipoDato)  +"\".");
+                                   + "\n\tEl caso debe tener un valor constante \"" + exp.getTipo().getNombre()  +"\".");
 
                     error = true;
-                }
 
-                if(!error && !casos.add(token.image)){
+                } else if (!casos.add(constante.getValor())) {
 
                     tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
-                                   + ".\n\tEl caso \"" + token.image + "\" ya existe."
+                                   + ".\n\tEl caso \"" + constante.getValor() + "\" ya existe."
                                    + "\n\tElimine caso repetido.");
+
+                    error = true;
                 }
 
                 ambitoConforme = new Ambito(ambito);
@@ -2094,11 +2288,23 @@ void sentenciaConforme(Ambito ambito) :
 void sentenciaPara(Ambito ambito) :
 {
     Ambito ambitoPara = new Ambito(ambito);
+
+    Token v;
+    Expresion condicion;
 } {
 
     try {
-        <INICIO_CICLO_PARA> ( <VARIABLE> asignacion(ambito, new Tupla<Integer, Token>(-2, token) ) | declaracion(ambitoPara) )
-        <CONDICION_CICLO_PARA> expresion(ambitoPara) <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
+        <INICIO_CICLO_PARA> ( v = <VARIABLE> asignacion(ambito, v.image, 0) | declaracion(ambitoPara) )
+        <CONDICION_CICLO_PARA> condicion = expresion(ambitoPara)
+        {
+            if (!condicion.getTipo().equals(TipoDato.BOOLEANO)) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                + ".\n\tEl condicional del ciclo \"Para\" solo funciona con el tipo de dato Booleano.");
+
+            }
+        }
+        <INCREMENTO_CICLO_PARA> ( <NUMERO_ENTERO> | <NUMERO_DECIMAL> )
         ( sentencias(ambitoPara) )*
         <FIN_CICLO_PARA>
     } catch (ParseException ex) {
@@ -2115,11 +2321,22 @@ void sentenciaPara(Ambito ambito) :
 void sentenciaRepetir(Ambito ambito) :
 {
     Ambito ambitoRepetir = new Ambito(ambito);
+
+    Expresion condicion;
 } {
 
     try {
         <INICIO_CICLO_REPETIR> ( sentencias(ambitoRepetir) )*
-        <CONDICION_CICLO_REPETIR> expresion(ambito) <DELIMITADOR>
+        <CONDICION_CICLO_REPETIR> condicion = expresion(ambito)
+        {
+            if (!condicion.getTipo().equals(TipoDato.BOOLEANO)) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                + ".\n\tEl condicional del ciclo \"Repetir\" solo funciona con el tipo de dato Booleano.");
+
+            }
+        }
+        <DELIMITADOR>
     } catch (ParseException ex) {
 
         processError(ex, "sentencia de bucle Repetir");
@@ -2133,10 +2350,21 @@ void sentenciaRepetir(Ambito ambito) :
 void sentenciaMientras(Ambito ambito) :
 {
     Ambito ambitoMientras = new Ambito(ambito);
+
+    Expresion condicion;
 } {
 
     try {
-        <INICIO_CICLO_MIENTRAS> expresion(ambito) <HACER>
+        <INICIO_CICLO_MIENTRAS> condicion = expresion(ambito)
+        {
+            if (!condicion.getTipo().equals(TipoDato.BOOLEANO)) {
+
+                tablaErrores.add("Error semántico, Línea " + token.beginLine + ", columna " + token.beginColumn
+                                + ".\n\tEl condicional del ciclo \"Mientras\" solo funciona con el tipo de dato Booleano.");
+
+            }
+        }
+        <HACER>
         ( sentencias(ambitoMientras) )*
         <FIN_CICLO_MIENTRAS>
     } catch (ParseException ex) {
